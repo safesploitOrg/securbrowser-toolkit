@@ -31,7 +31,7 @@ To get started with SecurBrowser Toolkit, simply clone the repository and open `
 
 ## Credits
 
-This project was adaptedf from  [web-browser-based-file-encryption-decryption](https://github.com/meixler/web-browser-based-file-encryption-decryption) repository.
+This project was adapted from   [web-browser-based-file-encryption-decryption](https://github.com/meixler/web-browser-based-file-encryption-decryption) repository.
 
 ## Licence
 
