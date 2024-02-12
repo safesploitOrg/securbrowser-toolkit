@@ -233,7 +233,13 @@ async function decryptfile() {
     var blob=new Blob([plaintextbytes], {type: 'application/download'});
     var blobUrl=URL.createObjectURL(blob);
     aDecsavefile.href=blobUrl;
-    aDecsavefile.download=objFile.name + '.dec';
+    
+    var lastIndex = objFile.name.lastIndexOf('.enc');
+    // Remove ".enc" from the filename if it exists, otherwise use the original filename
+    var filename = lastIndex !== -1 ? objFile.name.substring(0, lastIndex) : objFile.name;
+    // Append ".dec" extension for decrypted file
+    aDecsavefile.download = filename;
+
 
      spnDecstatus.classList.add("greenspan");
     spnDecstatus.innerHTML='<p>File decrypted.</p>';

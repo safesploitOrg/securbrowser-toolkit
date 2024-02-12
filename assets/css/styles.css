@@ -1,62 +1,90 @@
 body {
-    font-family: 'Helvetica', 'Arial', 'sans-serif'; 
-    color: black;
-    font-size: 11pt;        
-}
-
-a, a:link, a:visited, a:active {
-    color: blue;
-    text-decoration: underline;
-}
-
-a:hover {
-    cursor:pointer;
-    color: red;
-}
-
-.black10pointcourier {
-    font-family: 'courier'; 
-    color: black;
-    font-size: 10pt;        
+    font-family: Arial, sans-serif;
+    color: #333;
+    background-color: #f8f9fa;
+    margin: 0;
+    padding: 0;
+    line-height: 1.6;
 }
 
 .container {
     width: 80%;
     margin: 0 auto;
+    padding: 20px;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Arial', sans-serif;
+    font-weight: bold;
+    color: #333;
+}
+
+p {
+    margin-bottom: 15px;
+}
+
+a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+a:hover {
+    color: #0056b3;
+}
+
+button {
+    font-family: Arial, sans-serif;
+    font-size: 16px;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    background-color: #007bff;
+    color: #fff;
+    border-radius: 5px;
+    transition: background-color 0.3s ease;
+}
+
+button:hover {
+    background-color: #0056b3;
 }
 
 .dropzone {
-    border: 10px dashed gray;
-    width: 20%;
-    padding: 2% 2% 5% 2%;
+    border: 3px dashed #ccc;
+    background-color: #fff;
+    padding: 20px;
     text-align: center;
-    margin: 5px 0 5px 0;
+    margin: 20px 0;
+    border-radius: 5px;
 }
 
-.divTablefullwidth{
+.drag-text {
+    color: #666;
+}
+
+.file-name {
+    font-weight: bold;
+    color: #333;
+    margin-top: 10px;
+}
+
+.divTable {
     display: table;
     width: 100%;
-}
-
-.divTable{
-    display: table;
 }
 
 .divTableRow {
     display: table-row;
 }
+
 .divTableCell {
     display: table-cell;
-    padding: 3px 3px;
-}
-.divTableBody {
-    display: table-row-group;
+    padding: 8px;
 }
 
 .greenspan {
-    color: green;      
+    color: green;
 }
 
 .redspan {
-    color: red;      
+    color: red;
 }

@@ -39,7 +39,7 @@
                 <div class="divTableRow">
                     <div class="divTableCell">Password</div>
                     <div class="divTableCell"><input id="txtEncpassphrase" type="password" size="30" onkeyup="javascript:encvalidate();" value=""></div>
-                    <div class="divTableCell">(minimum length eight characters, make sure it's strong!)</div>
+                    <div class="divTableCell">(minimum 8 characters)</div>
                 </div>
                 <div class="divTableRow">
                     <div class="divTableCell">Password (retype)</div>
@@ -53,7 +53,7 @@
     
         <div>
             <div class="dropzone" id="encdropzone" ondrop="drop_handler(event);" ondragover="dragover_handler(event);" ondragend="dragend_handler(event);">
-                <p>Drag and drop the file to be encrypted into this dropzone, or click <a onclick="javascript:encfileElem.click();">here</a> to select file.</p>
+                <p>Drag and drop the file to be encrypted here, or click <a onclick="javascript:encfileElem.click();">here</a> to select file.</p>
                 <p><span id="spnencfilename"></span></p>
             </div>
             <input type="file" id="encfileElem" style="display:none" onchange="selectfile(this.files)">
@@ -97,7 +97,7 @@
     
         <div>
             <div class="dropzone" id="decdropzone" ondrop="drop_handler(event);" ondragover="dragover_handler(event);" ondragend="dragend_handler(event);">
-                <p>Drag and drop file to be decrypted into this dropzone, or click <a role="button" onclick="javascript:decfileElem.click();">here</a> to select file.</p>
+                <p>Drag and drop the file to be decrypted here, or click <a role="button" onclick="javascript:decfileElem.click();">here</a> to select file.</p>
                 <p><span id="spndecfilename"></span></p>
             </div>
             <input type="file" id="decfileElem" style="display:none" onchange="selectfile(this.files)">
