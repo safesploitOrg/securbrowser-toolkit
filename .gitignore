@@ -1,0 +1,19 @@
+# Ignore node_modules directory
+node_modules/
+
+# Ignore compiled CSS and JS files
+# *.css
+# *.js
+
+# Ignore any files with .enc or .dec extensions
+*.enc
+*.dec
+
+# Ignore .DS_Store files (macOS specific)
+.DS_Store
+
+# Ignore .idea directory (used by IntelliJ IDEA)
+.idea/
+
+# Ignore .vscode directory (used by Visual Studio Code)
+.vscode/
