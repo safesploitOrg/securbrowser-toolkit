@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Encrypt and decrypt files locally in your browser with SecurBrowser Toolkit."
+    />
+    <meta name="referrer" content="no-referrer" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'"
+    />
+    <title>SecurBrowser Toolkit — Local File Encryption</title>
+    <link rel="stylesheet" href="assets/css/app.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#app">Skip to application</a>
+
+    <header class="site-header">
+      <div class="site-header__inner">
+        <a class="brand" href="./" aria-label="SecurBrowser Toolkit home">
+          <span class="brand__mark" aria-hidden="true">S</span>
+          <span>
+            <strong>SecurBrowser Toolkit</strong>
+            <small>Local file encryption</small>
+          </span>
+        </a>
+        <div class="header-actions">
+          <span class="privacy-badge" title="Files are processed in this browser">
+            Local-only
+          </span>
+          <button class="button button--quiet" id="reset-app" type="button">Reset</button>
+          <a
+            class="button button--quiet"
+            href="https://github.com/safesploitOrg/securbrowser-toolkit/"
+            rel="noopener noreferrer"
+          >
+            GitHub ↗
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <main id="app" class="page-shell">
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow">Private by design</p>
+        <h1 id="page-title">Encrypt files without uploading them.</h1>
+        <p>
+          Encryption and decryption happen entirely in this browser. Your file and passphrase
+          are never sent to SecurBrowser Toolkit.
+        </p>
+      </section>
+
+      <p id="crypto-support" class="status" data-type="error" role="alert" hidden></p>
+
+      <section class="tool-card" aria-label="File encryption and decryption tool">
+        <div class="mode-tabs" role="tablist" aria-label="Choose operation">
+          <button
+            id="tab-encrypt"
+            class="mode-tab"
+            type="button"
+            role="tab"
+            aria-controls="panel-encrypt"
+            aria-selected="true"
+          >
+            <span aria-hidden="true">🔒</span> Encrypt
+          </button>
+          <button
+            id="tab-decrypt"
+            class="mode-tab"
+            type="button"
+            role="tab"
+            aria-controls="panel-decrypt"
+            aria-selected="false"
+            tabindex="-1"
+          >
+            <span aria-hidden="true">🔓</span> Decrypt
+          </button>
+        </div>
+
+        <section
+          id="panel-encrypt"
+          class="tool-panel"
+          role="tabpanel"
+          aria-labelledby="tab-encrypt"
+        >
+          <div class="panel-heading">
+            <div>
+              <h2>Encrypt a file</h2>
+              <p>Create a new authenticated <code>.enc</code> file using the v2 format.</p>
+            </div>
+            <span class="format-badge">AES-256-GCM</span>
+          </div>
+
+          <form id="encrypt-form" autocomplete="off" novalidate>
+            <div class="form-section">
+              <label id="encrypt-dropzone" class="dropzone" for="encrypt-file">
+                <span class="dropzone__icon" aria-hidden="true">⇧</span>
+                <strong>Drop a file here</strong>
+                <span>or choose a file from this device</span>
+                <span class="button button--secondary" aria-hidden="true">Choose file</span>
+              </label>
+              <input id="encrypt-file" class="visually-hidden" type="file" />
+
+              <div id="encrypt-file-meta" class="file-meta" hidden>
+                <span class="file-meta__icon" aria-hidden="true">📄</span>
+                <span class="file-meta__name" id="encrypt-file-name"></span>
+                <span class="file-meta__size" id="encrypt-file-size"></span>
+              </div>
+              <p id="encrypt-large-warning" class="inline-warning" hidden>
+                Large file: SecurBrowser currently processes the whole file in browser memory.
+              </p>
+            </div>
+
+            <div class="form-grid">
+              <div class="field">
+                <label for="encrypt-passphrase">Passphrase</label>
+                <div class="password-field">
+                  <input
+                    id="encrypt-passphrase"
+                    type="password"
+                    minlength="8"
+                    autocomplete="off"
+                    required
+                  />
+                  <button
+                    class="password-toggle"
+                    type="button"
+                    data-password-toggle="encrypt-passphrase"
+                    aria-label="Show passphrase"
+                  >
+                    Show
+                  </button>
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="encrypt-confirm">Confirm passphrase</label>
+                <div class="password-field">
+                  <input
+                    id="encrypt-confirm"
+                    type="password"
+                    minlength="8"
+                    autocomplete="off"
+                    required
+                  />
+                  <button
+                    class="password-toggle"
+                    type="button"
+                    data-password-toggle="encrypt-confirm"
+                    aria-label="Show passphrase"
+                  >
+                    Show
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <p id="passphrase-match" class="field-help" data-state="neutral">
+              Use at least 8 characters; a longer passphrase is recommended.
+            </p>
+
+            <div class="action-row">
+              <button id="encrypt-submit" class="button button--primary" type="submit" disabled>
+                Encrypt file
+              </button>
+              <a id="encrypt-download" class="button button--success" href="#" hidden>
+                Download encrypted file
+              </a>
+            </div>
+
+            <p id="encrypt-status" class="status" role="status" aria-live="polite" hidden></p>
+          </form>
+        </section>
+
+        <section
+          id="panel-decrypt"
+          class="tool-panel"
+          role="tabpanel"
+          aria-labelledby="tab-decrypt"
+          hidden
+        >
+          <div class="panel-heading">
+            <div>
+              <h2>Decrypt a file</h2>
+              <p>Decrypt authenticated v2 files or compatible legacy <code>Salted__</code> files.</p>
+            </div>
+            <span class="format-badge">v2 + legacy</span>
+          </div>
+
+          <form id="decrypt-form" autocomplete="off" novalidate>
+            <div class="form-section">
+              <label id="decrypt-dropzone" class="dropzone" for="decrypt-file">
+                <span class="dropzone__icon" aria-hidden="true">⇧</span>
+                <strong>Drop an encrypted file here</strong>
+                <span>or choose a file from this device</span>
+                <span class="button button--secondary" aria-hidden="true">Choose file</span>
+              </label>
+              <input id="decrypt-file" class="visually-hidden" type="file" />
+
+              <div id="decrypt-file-meta" class="file-meta" hidden>
+                <span class="file-meta__icon" aria-hidden="true">📄</span>
+                <span class="file-meta__name" id="decrypt-file-name"></span>
+                <span class="file-meta__size" id="decrypt-file-size"></span>
+              </div>
+              <p id="decrypt-large-warning" class="inline-warning" hidden>
+                Large file: SecurBrowser currently processes the whole file in browser memory.
+              </p>
+            </div>
+
+            <div class="field field--single">
+              <label for="decrypt-passphrase">Passphrase</label>
+              <div class="password-field">
+                <input
+                  id="decrypt-passphrase"
+                  type="password"
+                  autocomplete="off"
+                  required
+                />
+                <button
+                  class="password-toggle"
+                  type="button"
+                  data-password-toggle="decrypt-passphrase"
+                  aria-label="Show passphrase"
+                >
+                  Show
+                </button>
+              </div>
+            </div>
+
+            <div class="action-row">
+              <button id="decrypt-submit" class="button button--primary" type="submit" disabled>
+                Decrypt file
+              </button>
+              <a id="decrypt-download" class="button button--success" href="#" hidden>
+                Download decrypted file
+              </a>
+            </div>
+
+            <p id="decrypt-status" class="status" role="status" aria-live="polite" hidden></p>
+          </form>
+        </section>
+      </section>
+
+      <section class="security-summary" aria-labelledby="security-title">
+        <div class="security-summary__heading">
+          <span class="security-summary__icon" aria-hidden="true">🛡️</span>
+          <div>
+            <h2 id="security-title">What protects a v2 file?</h2>
+            <p>No uploads, accounts, analytics or third-party runtime libraries.</p>
+          </div>
+        </div>
+
+        <dl class="security-grid">
+          <div>
+            <dt>Key derivation</dt>
+            <dd>PBKDF2-HMAC-SHA512</dd>
+          </div>
+          <div>
+            <dt>Work factor</dt>
+            <dd>220,000 iterations</dd>
+          </div>
+          <div>
+            <dt>Encryption</dt>
+            <dd>AES-256-GCM</dd>
+          </div>
+          <div>
+            <dt>Randomness</dt>
+            <dd>128-bit salt + 96-bit nonce</dd>
+          </div>
+        </dl>
+
+        <details>
+          <summary>Security and compatibility notes</summary>
+          <div class="details-content">
+            <p>
+              SecurBrowser v2 authenticates its format metadata and encrypted payload. A wrong
+              passphrase or modified v2 file will fail authentication rather than returning
+              untrusted plaintext.
+            </p>
+            <p>
+              Legacy files created by earlier SecurBrowser versions use PBKDF2-SHA256 with 10,000
+              iterations and AES-256-CBC. They can still be decrypted, but that format does not
+              provide authenticated integrity. New encryption always uses v2.
+            </p>
+            <p>
+              Files are currently loaded into browser memory in full. For very large files, use a
+              desktop encryption tool designed for streaming data.
+            </p>
+          </div>
+        </details>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>SecurBrowser Toolkit · Browser-local encryption · MIT licensed</p>
+    </footer>
+
+    <script type="module" src="assets/js/app.js"></script>
+  </body>
+</html>

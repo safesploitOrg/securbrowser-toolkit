@@ -1,38 +1,128 @@
 # SecurBrowser Toolkit
 
-## Introduction
+SecurBrowser Toolkit is a small, browser-only file encryption utility. Files and passphrases are processed locally with the Web Crypto API; the deployed application has no backend and no production npm dependencies.
 
-SecurBrowser Toolkit is a web-based file encryption and decryption tool designed to provide a secure way to encrypt and decrypt files directly within your browser. This toolkit offers a user-friendly interface for encrypting sensitive files before uploading them to cloud storage or sharing them with others.
+## Security design
 
-## Features
+New v2 encrypted files use:
 
-- **User-Friendly Interface:** Easily encrypt and decrypt files with a simple drag-and-drop interface.
-- **Secure Encryption:** Utilises modern encryption techniques to ensure the security of your files.
-- **Browser-Based:** No need to install additional software or plugins; encryption and decryption are performed directly in your web browser.
-- **Cross-Platform:** Works on any device with a modern web browser, including desktops, laptops, and mobile devices.
+- **PBKDF2-HMAC-SHA512** with **220,000 iterations**
+- **128-bit random salt** per encryption
+- **AES-256-GCM** authenticated encryption
+- **96-bit random nonce** per encryption
+- **128-bit GCM authentication tag**
+- authenticated file-format metadata via AES-GCM Additional Authenticated Data (AAD)
 
-## Getting Started
+Legacy files beginning with `Salted__` remain decryptable for compatibility. They use the original PBKDF2-HMAC-SHA256 / AES-256-CBC construction and are treated as unauthenticated legacy data. New encryption always writes the v2 format.
 
-To get started with SecurBrowser Toolkit, simply clone the repository and open `index.html` in your preferred web browser. You can then encrypt or decrypt files by following the on-screen instructions.
+See [SECURITY.md](SECURITY.md) and [docs/FILE_FORMAT.md](docs/FILE_FORMAT.md) for the threat model and byte-level format.
 
-## Usage
+## Architecture
 
-1. **Encrypting Files:**
-   - Drag and drop the file you want to encrypt into the designated drop zone, or click to select a file.
-   - Enter a secure passphrase for encryption.
-   - Click the "Encrypt" button to generate the encrypted file.
-   - Download the encrypted file and securely store it.
+```text
+Browser
+  |
+  +-- File / Blob APIs
+  |
+  +-- Web Crypto API
+  |     +-- PBKDF2-HMAC-SHA512
+  |     +-- AES-256-GCM
+  |
+  +-- ES modules
+        +-- app.js
+        +-- ui.js
+        +-- encryption.js
+        +-- crypto.js
+        +-- file-format.js
+        +-- file-utils.js
 
-2. **Decrypting Files:**
-   - Drag and drop the encrypted file into the designated drop zone, or click to select the file.
-   - Enter the passphrase used for encryption.
-   - Click the "Decrypt" button to generate the decrypted file.
-   - Download the decrypted file and access its contents.
+Files --------X--------> application server
+Passphrases ---X--------> application server
+```
+
+Everything required by the deployed application lives under `public/`:
+
+```text
+securbrowser-toolkit/
+├── public/
+│   ├── index.html
+│   └── assets/
+│       ├── css/app.css
+│       └── js/
+├── tests/
+│   ├── unit/
+│   └── e2e/
+├── scripts/
+├── docs/
+├── .github/workflows/
+└── package.json
+```
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module boundaries and [docs/MIGRATION.md](docs/MIGRATION.md) when upgrading an existing deployment.
+
+## Run locally
+
+ES modules are used, so run the included local server rather than opening the HTML file through `file://`.
+
+```bash
+npm install
+npm run dev
+```
+
+Open:
+
+```text
+http://127.0.0.1:8080
+```
+
+The application itself still has **zero production npm dependencies**. npm packages are used only for repository testing and development tooling.
+
+## Tests and quality checks
+
+```bash
+npm run deps:production
+npm run style:check
+npm run lint
+npm run validate:html
+npm run test:unit
+npx playwright install chromium firefox webkit
+npm run test:e2e
+```
+
+The test suite covers:
+
+- empty, one-byte, text and binary-file encryption round trips
+- Unicode passphrases
+- randomised ciphertext for repeated encryption
+- wrong-passphrase rejection
+- ciphertext tampering detection
+- authenticated metadata tampering detection
+- legacy `Salted__` decryption compatibility
+- file-format parsing and invalid/truncated headers
+- filename and zero-byte size handling
+- Chromium, Firefox and WebKit browser flows
+
+## GitHub Actions
+
+- `CI` runs formatting, linting, HTML validation, unit tests and cross-browser Playwright tests.
+- `Deploy Pages` publishes only `public/` after a successful `CI` run on `main`.
+- Actions are pinned to full commit SHAs.
+- Dependabot tracks npm development tooling and GitHub Actions updates.
+
+For GitHub Pages, select **GitHub Actions** as the Pages deployment source.
+
+## Hosting
+
+Point the web server document root at `public/`. See [docs/HOSTING.md](docs/HOSTING.md) for GitHub Pages and Nginx examples, including recommended response headers.
+
+## Browser and memory considerations
+
+Encryption and decryption currently load the complete file into browser memory. The UI warns for files of 250 MiB or larger. Very large-file streaming is deliberately not implemented in v2 because a secure streaming authenticated-encryption format should be designed explicitly rather than bolted onto AES-GCM.
 
 ## Credits
 
-This project was adapted from   [web-browser-based-file-encryption-decryption](https://github.com/meixler/web-browser-based-file-encryption-decryption) repository.
+The original project was adapted from [meixler/web-browser-based-file-encryption-decryption](https://github.com/meixler/web-browser-based-file-encryption-decryption). SecurBrowser v2 substantially restructures the application and introduces a new authenticated file format while preserving legacy decryption compatibility.
 
 ## Licence
 
-This project is licensed under the MIT Licence. See the [LICENSE](LICENSE) file for details.
+MIT. See [LICENSE](LICENSE).

@@ -1,0 +1,31 @@
+{
+  "name": "securbrowser-toolkit",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Dependency-free browser-side file encryption using Web Crypto.",
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint public/assets/js tests scripts playwright.config.js",
+    "validate:html": "html-validate public/index.html",
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:chromium": "playwright test --project=chromium",
+    "check": "npm run style:check && npm run lint && npm run validate:html && npm run test:unit",
+    "deps:production": "node scripts/check-production-deps.mjs",
+    "style:check": "node scripts/check-style.mjs"
+  },
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "eslint": "10.9.1",
+    "html-validate": "11.15.0",
+    "prettier": "3.9.6",
+    "vitest": "5.0.0"
+  }
+}

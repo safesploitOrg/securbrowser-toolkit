@@ -1,43 +1,91 @@
-# Security Policy
+# Security policy
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
-At SecurBrowser Toolkit, we take security seriously and value the contributions of security researchers in helping us maintain the security of our toolkit. If you discover any security vulnerabilities or issues, we encourage you to responsibly disclose them to us so that we can address them promptly.
+Please report security vulnerabilities privately to **security@safesploit.com**. Include reproduction steps, affected components and expected impact where possible. Avoid public disclosure until the issue can be investigated and a fix coordinated.
 
-To report a security vulnerability, please follow these steps:
+## Security properties of v2 files
 
-1. **Privately Notify Us:** Please do not disclose the vulnerability publicly until we have had a chance to review and address it. You can contact us directly via email at [security@safesploit.com](mailto:security@safesploit.com).
+SecurBrowser v2 uses only the browser's native Web Crypto API at runtime.
 
-2. **Provide Details:** When reporting the vulnerability, please provide as much detail as possible, including steps to reproduce, the affected components, and any potential impact.
+| Property | v2 design |
+| --- | --- |
+| Password KDF | PBKDF2-HMAC-SHA512 |
+| New-file work factor | 220,000 iterations |
+| Salt | 16 random bytes from `crypto.getRandomValues()` |
+| Cipher | AES-256-GCM |
+| Nonce | 12 random bytes from `crypto.getRandomValues()` |
+| Authentication tag | 16 bytes / 128 bits |
+| Authenticated metadata | Yes, v2 header + salt + nonce are AES-GCM AAD |
+| Production JavaScript dependencies | None |
 
-3. **Cooperate with Us:** We may need to work with you to better understand the issue and verify any fixes or patches.
+The iteration count is stored in each v2 file. The parser accepts 220,000 to 5,000,000 iterations so the work factor can rise in future versions without losing decryption compatibility, while bounding attacker-controlled KDF cost.
 
-4. **Responsible Disclosure:** Once the vulnerability has been confirmed and addressed, we will work with you to determine an appropriate timeline for public disclosure.
+The current 220,000 PBKDF2-HMAC-SHA512 work factor follows the contemporary [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html) baseline for PBKDF2-HMAC-SHA512. Because client hardware varies, maintainers should periodically review this value rather than treating it as permanent.
 
-We appreciate your efforts in helping us maintain the security of SecurBrowser Toolkit. Thank you for your cooperation.
+## Authenticated encryption
 
-## Encryption Standards
+AES-GCM provides confidentiality and authentication. The v2 format passes its complete metadata block to Web Crypto as Additional Authenticated Data (AAD). Therefore a wrong passphrase or modification of the header metadata, salt, nonce, ciphertext or authentication tag causes v2 decryption to fail.
 
-The encryption process in the SecurBrowser Toolkit adheres to industry-standard encryption practices to ensure the security of encrypted files. Below are the key standards and practices employed in the encryption process:
+The application never reuses a nonce intentionally: a fresh 96-bit nonce and 128-bit salt are generated for every encryption operation.
 
-### Password-Based Key Derivation Function 2 (PBKDF2)
-- **Algorithm:** PBKDF2 is utilized to derive a cryptographic key from the user-provided passphrase.
-- **Iterations:** PBKDF2 employs a high number of iterations (10,000) to derive a secure key, making it more resistant to brute force attacks.
-- **Salt:** A randomly generated salt value is combined with the passphrase during key derivation, enhancing the security of the derived key.
+## Legacy compatibility
 
-### Advanced Encryption Standard (AES)
-- **Algorithm:** AES, a symmetric encryption algorithm, is employed in Cipher Block Chaining (CBC) mode for encrypting and decrypting files.
-- **Key Size:** AES-CBC mode uses a 256-bit key, which is generated from the PBKDF2-derived key bytes.
-- **Initialization Vector (IV):** AES-CBC mode requires a 128-bit IV for each encryption operation, which is generated internally by the Web Crypto API.
+Files produced by the original application begin with `Salted__` and use:
 
-### Random Salt Generation
-- **Purpose:** A random salt value is generated for each encryption operation to introduce randomness and uniqueness to the encryption process.
-- **Prevention:** Using a random salt mitigates the risk of rainbow table attacks and ensures that identical plaintexts encrypted with the same passphrase produce different ciphertexts.
+- PBKDF2-HMAC-SHA256
+- 10,000 iterations
+- 8-byte salt
+- 256-bit AES key derived from the first 32 bytes of PBKDF2 output
+- 128-bit CBC IV derived from the remaining 16 bytes
+- AES-256-CBC
 
-### File Format
-- **Structure:** Encrypted files follow a specific format for compatibility and security.
-- **Header:** Each encrypted file begins with the ASCII string "Salted__" to indicate the use of salt in the encryption process.
-- **Content:** The salt value is appended to the file header, followed by the ciphertext.
-- **Compatibility:** The file format ensures that decryption algorithms can accurately identify and process encrypted files, preventing data corruption or loss during decryption.
+This format does **not** provide authenticated integrity. Legacy decryption is retained only so existing data is not stranded. The UI explicitly warns after legacy decryption and recommends re-encrypting with v2 when practical. New encryption never writes the legacy format.
 
-By adhering to these encryption standards and practices, the SecurBrowser Toolkit offers robust security for encrypted files, safeguarding sensitive information from unauthorized access.
+See [docs/FILE_FORMAT.md](docs/FILE_FORMAT.md) for the exact layouts.
+
+## Threat model
+
+SecurBrowser is designed to protect a file at rest when the user chooses a strong passphrase and uses a trustworthy browser/application copy.
+
+It is designed so the hosted application does not need to receive plaintext files or passphrases.
+
+It does **not** protect against:
+
+- a compromised endpoint or browser process
+- malicious or over-privileged browser extensions
+- keylogging or screen capture
+- a maliciously modified copy of the application
+- an attacker able to execute script in the application origin
+- weak/reused passphrases and offline guessing against a captured encrypted file
+- denial of service through extremely large input files
+
+## Static hosting security
+
+Where the hosting platform permits response headers, use:
+
+- Content Security Policy with `default-src 'self'` and `frame-ancestors 'none'`
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY` as a compatibility fallback for framing protection
+- `Referrer-Policy: no-referrer`
+- a restrictive `Permissions-Policy`
+- `Cross-Origin-Opener-Policy: same-origin`
+- HTTPS
+
+`public/index.html` also includes a restrictive CSP meta policy as defence in depth. Header-delivered CSP remains preferable and can enforce directives such as `frame-ancestors`.
+
+## Dependency and CI security
+
+The deployed application has zero npm dependencies. Development tooling is isolated outside `public/`.
+
+GitHub Actions are pinned to full commit SHAs, workflows declare explicit least-privilege permissions, and Dependabot is configured for both npm development dependencies and GitHub Actions.
+
+## Cryptographic changes
+
+Changes to algorithms, file-format identifiers, nonce generation, KDF parameters or authenticated metadata should include:
+
+1. unit tests for round trip and failure cases;
+2. tamper-detection tests;
+3. backward-compatibility tests where applicable;
+4. documentation updates to this file and `docs/FILE_FORMAT.md`;
+5. browser tests in Chromium, Firefox and WebKit.

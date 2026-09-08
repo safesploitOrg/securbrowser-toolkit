@@ -2,8 +2,3 @@ node_modules/
 playwright-report/
 test-results/
 coverage/
-*.enc
-*.dec
-.DS_Store
-.idea/
-.vscode/
