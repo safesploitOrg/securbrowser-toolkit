@@ -4,7 +4,7 @@ import { extname, join, relative } from "node:path";
 const ROOT = new URL("../", import.meta.url);
 const ROOT_PATH = ROOT.pathname;
 const INCLUDED_EXTENSIONS = new Set([".css", ".html", ".js", ".json", ".md", ".mjs", ".yml", ".yaml"]);
-const EXCLUDED_DIRECTORIES = new Set(["node_modules", "playwright-report", "test-results", "coverage"]);
+const EXCLUDED_DIRECTORIES = new Set(["node_modules", "playwright-report", "test-results", "coverage", "vendor"]);
 const EXCLUDED_FILES = new Set(["package-lock.json"]);
 
 async function collect(directory) {

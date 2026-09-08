@@ -8,6 +8,12 @@ import {
   V2_SALT_LENGTH,
 } from "../public/assets/js/file-format.js";
 import { decryptedFilename, formatFileSize } from "../public/assets/js/file-utils.js";
+import {
+  archiveOutputFilename,
+  isSevenZipBytes,
+  normaliseArchivePath,
+  SEVEN_ZIP_SIGNATURE,
+} from "../public/assets/js/archive-utils.js";
 
 const PASSPHRASE = "self-test passphrase 🔐";
 
@@ -106,7 +112,11 @@ assert.equal(
 assert.equal(formatFileSize(0), "0 Bytes");
 assert.equal(formatFileSize(1), "1 Byte");
 assert.equal(decryptedFilename("report.pdf.enc"), "report.pdf");
+assert.equal(normaliseArchivePath("folder\\nested/file.txt"), "folder/nested/file.txt");
+assert.throws(() => normaliseArchivePath("../escape.txt"), /traversal/i);
+assert.equal(archiveOutputFilename("evidence?.7z"), "evidence_.7z");
+assert.equal(isSevenZipBytes(new Uint8Array([...SEVEN_ZIP_SIGNATURE, 0])), true);
 
 console.log(
-  "PASS: v2 round-trips, SHA-512 KDF path, randomisation, GCM tamper detection, wrong-passphrase rejection, legacy compatibility and utility checks.",
+  "PASS: v2 round-trips, SHA-512 KDF path, randomisation, GCM tamper detection, wrong-passphrase rejection, legacy compatibility, archive utility guards and utility checks.",
 );

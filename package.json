@@ -1,22 +1,27 @@
 {
   "name": "securbrowser-toolkit",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "type": "module",
-  "description": "Dependency-free browser-side file encryption using Web Crypto.",
+  "description": "Browser-side authenticated file encryption and interoperable encrypted 7z archives.",
   "scripts": {
-    "dev": "node scripts/serve.mjs",
+    "build:public": "npm run vendor:sevenzip && npm run vendor:sevenzip:check",
+    "dev": "npm run build:public && node scripts/serve.mjs",
+    "serve": "node scripts/serve.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint public/assets/js tests scripts playwright.config.js",
     "validate:html": "html-validate public/index.html",
     "test": "npm run test:unit && npm run test:e2e",
-    "test:unit": "vitest run",
-    "test:e2e": "playwright test",
-    "test:e2e:chromium": "playwright test --project=chromium",
-    "check": "npm run style:check && npm run lint && npm run validate:html && npm run test:unit",
+    "test:unit": "vitest run tests/unit",
+    "test:e2e": "npm run build:public && playwright test",
+    "test:e2e:chromium": "npm run build:public && playwright test --project=chromium",
+    "check": "npm run layout:check && npm run deps:production && npm run build:public && npm run style:check && npm run lint && npm run validate:html && npm run test:unit",
     "deps:production": "node scripts/check-production-deps.mjs",
-    "style:check": "node scripts/check-style.mjs"
+    "style:check": "node scripts/check-style.mjs",
+    "layout:check": "node scripts/check-layout.mjs",
+    "vendor:sevenzip": "node scripts/vendor-sevenzip.mjs",
+    "vendor:sevenzip:check": "node scripts/check-vendor-sevenzip.mjs"
   },
   "engines": {
     "node": ">=22.16.0"

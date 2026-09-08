@@ -1,34 +1,57 @@
-# Migration from the original release to v2
+# Migration
 
-## Hosting path
+## Original repository layout to v2+
 
-The deployable web application moved from the repository root to `public/`.
-
-Change a web server document root from the repository root to:
+The original application lived at repository root:
 
 ```text
-/path/to/securbrowser-toolkit/public
+index.html
+assets/
 ```
 
-For GitHub Pages, use the included Actions deployment workflow rather than branch-folder publishing.
+SecurBrowser v2 and later use `public/` as the only deployable web root.
 
-## Local use
-
-The v2 JavaScript is split into ES modules. Opening `index.html` directly through `file://` is therefore no longer a supported execution mode.
-
-Use:
+When applying a release to an existing Git checkout, extracting/copying new files does **not** remove tracked files that disappeared from the release. Remove the old web application explicitly:
 
 ```bash
-npm run dev
+git rm -r assets index.html
 ```
 
-or any static HTTP server pointed at `public/`.
+Then verify:
 
-## Encrypted files
+```bash
+npm run layout:check
+```
 
-- Existing legacy `Salted__` files remain decryptable in v2.
-- New files are always written in the authenticated SecurBrowser v2 format.
-- The original pre-v2 application cannot decrypt new v2 files.
-- After successfully decrypting a legacy file, re-encrypt it with v2 when practical to gain authenticated integrity and the stronger KDF work factor.
+If those files remain, CI intentionally fails before the style check with an actionable migration message. This is the fix for the old root-file trailing-whitespace CI failure.
 
-Do not delete the only copy of an encrypted file during migration. Verify decryption before replacing archived legacy data.
+## v2.0.0 to v2.1.0
+
+v2.1.0 adds Secure Archive:
+
+- standard encrypted `.7z` creation;
+- mandatory encrypted filenames (`-mhe=on`);
+- local `.7z` decrypt/extract;
+- pinned sevenzip-wasm 26.3.0 / 7-Zip 26.03 WebAssembly runtime;
+- archive path, signature, metadata, entry and expansion safety checks;
+- verification that generated archives cannot expose filenames with an incorrect passphrase;
+- browser archive round-trip tests;
+- Node.js 24 GitHub Actions.
+
+Before serving or browser-testing Secure Archive, populate the generated vendor runtime:
+
+```bash
+npm run build:public
+```
+
+The generated vendor files are intentionally ignored by Git. CI and Pages deployment build and verify them automatically.
+
+## Secure File compatibility
+
+The SecurBrowser v2 `.enc` format is unchanged by v2.1.0. Existing v2 files remain compatible.
+
+Legacy `Salted__` PBKDF2-SHA256/AES-CBC files also remain decryptable. New Secure File encryption always uses the authenticated v2 format.
+
+## 7z compatibility
+
+Secure Archive output is a standard 7z archive and does not require SecurBrowser for decryption. Recipients can use compatible 7z software and the passphrase.

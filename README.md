@@ -1,128 +1,198 @@
 # SecurBrowser Toolkit
 
-SecurBrowser Toolkit is a small, browser-only file encryption utility. Files and passphrases are processed locally with the Web Crypto API; the deployed application has no backend and no production npm dependencies.
+SecurBrowser Toolkit is a static, browser-side utility for protecting files without uploading them to an application server.
 
-## Security design
+It provides two deliberately different formats:
 
-New v2 encrypted files use:
+- **Secure File** — authenticated SecurBrowser `.enc` files using native Web Crypto.
+- **Secure Archive** — standard password-protected `.7z` archives with encrypted filenames for interoperability with normal 7z-compatible software.
 
-- **PBKDF2-HMAC-SHA512** with **220,000 iterations**
-- **128-bit random salt** per encryption
-- **AES-256-GCM** authenticated encryption
-- **96-bit random nonce** per encryption
-- **128-bit GCM authentication tag**
-- authenticated file-format metadata via AES-GCM Additional Authenticated Data (AAD)
+All application files live under [`public/`](public/), making the deployment boundary explicit for GitHub Pages, Nginx, Apache and other static hosting platforms.
 
-Legacy files beginning with `Salted__` remain decryptable for compatibility. They use the original PBKDF2-HMAC-SHA256 / AES-256-CBC construction and are treated as unauthenticated legacy data. New encryption always writes the v2 format.
+## Features
 
-See [SECURITY.md](SECURITY.md) and [docs/FILE_FORMAT.md](docs/FILE_FORMAT.md) for the threat model and byte-level format.
+### Secure File
 
-## Architecture
+- PBKDF2-HMAC-SHA512 with 220,000 iterations.
+- 128-bit random salt.
+- AES-256-GCM with a 96-bit random nonce and 128-bit authentication tag.
+- Versioned SecurBrowser v2 file format with authenticated metadata.
+- Decryption support for the previous `Salted__` PBKDF2-SHA256/AES-CBC format.
+- Zero third-party cryptographic code: Secure File uses the browser's Web Crypto API.
+
+See [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md).
+
+### Secure Archive
+
+- Creates standard `.7z` archives.
+- AES-256 encryption provided by 7-Zip.
+- Header encryption is **always enabled** (`-mhe=on`), hiding filenames until the correct passphrase is supplied.
+- Supports multiple files and browser folder selection where available.
+- Store, Fast, Normal and Maximum compression presets.
+- Tests every generated archive with a fresh 7-Zip runtime before enabling download.
+- Decrypts and extracts encrypted `.7z` archives locally in the browser.
+- Performs signature, path, entry-count and expansion-size checks before extraction.
+- Skips symbolic links and special entries when collecting extracted data.
+- Extracted files can be downloaded individually; browsers with the File System Access API can save a directory tree directly.
+
+Secure Archive uses pinned **sevenzip-wasm 26.3.0**, built from **7-Zip 26.03**. The build step verifies GitHub's immutable release asset against SHA-256 `db58a8176f63be60c1701dd260b797ff01132f39e54bf40d7c4b205b5b030243` before extracting `sevenzip-wasm.js`, `sevenzip-wasm.wasm` and the upstream licence into `public/vendor/sevenzip-wasm/`. Runtime code is served locally and is never fetched from a CDN by the application.
+
+See [`docs/SECURE_ARCHIVE.md`](docs/SECURE_ARCHIVE.md) and [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+## Privacy model
+
+The web application does not need an upload API:
 
 ```text
 Browser
   |
-  +-- File / Blob APIs
+  +-- Secure File --> Web Crypto --> .enc
   |
-  +-- Web Crypto API
-  |     +-- PBKDF2-HMAC-SHA512
-  |     +-- AES-256-GCM
-  |
-  +-- ES modules
-        +-- app.js
-        +-- ui.js
-        +-- encryption.js
-        +-- crypto.js
-        +-- file-format.js
-        +-- file-utils.js
-
-Files --------X--------> application server
-Passphrases ---X--------> application server
+  +-- Secure Archive --> Web Worker --> local sevenzip-wasm/WASM --> .7z / extracted files
 ```
 
-Everything required by the deployed application lives under `public/`:
+Selected files and passphrases are processed in the browser. No analytics, remote fonts or CDN scripts are required by the application.
+
+The hosting provider can still observe ordinary web requests for the static application itself. A compromised hosting origin can also replace browser-delivered code, so use HTTPS and appropriate deployment controls for sensitive use cases.
+
+## Repository layout
 
 ```text
 securbrowser-toolkit/
-├── public/
+├── public/                    # Complete deployable web application after build
 │   ├── index.html
-│   └── assets/
-│       ├── css/app.css
-│       └── js/
+│   ├── assets/
+│   │   ├── css/
+│   │   └── js/
+│   └── vendor/sevenzip-wasm/ # Generated, pinned 7-Zip 26.03 runtime
 ├── tests/
 │   ├── unit/
 │   └── e2e/
 ├── scripts/
 ├── docs/
 ├── .github/workflows/
-└── package.json
+├── package.json
+└── SECURITY.md
 ```
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module boundaries and [docs/MIGRATION.md](docs/MIGRATION.md) when upgrading an existing deployment.
+There must be **no root `index.html` or root `assets/` web application**. If upgrading an older checkout, see [Migration](#migration-from-the-original-layout).
 
-## Run locally
+## Development
 
-ES modules are used, so run the included local server rather than opening the HTML file through `file://`.
+Requirements:
+
+- Node.js 22.16 or later; CI uses Node.js 24.
+- npm.
+- Network access the first time `public/vendor/sevenzip-wasm/` is populated.
+
+Install development tooling:
 
 ```bash
-npm install
+npm install --ignore-scripts --no-audit --no-fund
+```
+
+Prepare and verify the pinned local archive runtime:
+
+```bash
+npm run build:public
+```
+
+Start the local server:
+
+```bash
 npm run dev
 ```
 
-Open:
+Open `http://127.0.0.1:4173/`.
 
-```text
-http://127.0.0.1:8080
-```
+After `npm run build:public`, the generated `public/` tree is self-contained for runtime hosting; no CDN or application API is required.
 
-The application itself still has **zero production npm dependencies**. npm packages are used only for repository testing and development tooling.
-
-## Tests and quality checks
+## Testing
 
 ```bash
+npm run layout:check
 npm run deps:production
+npm run build:public
 npm run style:check
 npm run lint
 npm run validate:html
 npm run test:unit
-npx playwright install chromium firefox webkit
 npm run test:e2e
 ```
 
 The test suite covers:
 
-- empty, one-byte, text and binary-file encryption round trips
-- Unicode passphrases
-- randomised ciphertext for repeated encryption
-- wrong-passphrase rejection
-- ciphertext tampering detection
-- authenticated metadata tampering detection
-- legacy `Salted__` decryption compatibility
-- file-format parsing and invalid/truncated headers
-- filename and zero-byte size handling
-- Chromium, Firefox and WebKit browser flows
+- SecurBrowser v2 encryption/decryption round trips.
+- AES-GCM tamper and wrong-passphrase rejection.
+- Legacy CBC compatibility.
+- 7z path/signature/limit utility checks.
+- Vendor pin configuration.
+- Playwright browser round trips for Secure File and Secure Archive in Chromium, Firefox and WebKit.
 
-## GitHub Actions
+The Secure Archive browser test creates an encrypted 7z, downloads it, feeds it back into the Extract 7z workflow and verifies extracted content. Generated archives are also tested internally by a second, fresh 7-Zip WASM instance before their download link is enabled.
 
-- `CI` runs formatting, linting, HTML validation, unit tests and cross-browser Playwright tests.
-- `Deploy Pages` publishes only `public/` after a successful `CI` run on `main`.
-- Actions are pinned to full commit SHAs.
-- Dependabot tracks npm development tooling and GitHub Actions updates.
+`package.json` intentionally has no npm production `dependencies`; npm packages are development tooling only. Secure Archive has a vendored runtime dependency on sevenzip-wasm/7-Zip, documented below.
 
-For GitHub Pages, select **GitHub Actions** as the Pages deployment source.
+## sevenzip-wasm vendor pinning
+
+The archive runtime is pinned in [`scripts/sevenzip-vendor-config.mjs`](scripts/sevenzip-vendor-config.mjs) to:
+
+- sevenzip-wasm release `26.3.0`.
+- upstream 7-Zip `26.03`.
+- immutable GitHub release asset `sevenzip-wasm.zip`.
+- release asset SHA-256 `db58a8176f63be60c1701dd260b797ff01132f39e54bf40d7c4b205b5b030243`.
+- source/tag commit `b4406198ad5399dc277cc13ab288f54b676aa411`.
+
+`npm run build:public` downloads only that pinned release asset, verifies the complete ZIP before extracting the browser runtime and upstream licence, and writes a local manifest. `npm run vendor:sevenzip:check` then verifies the generated local files against that manifest. The application itself never contacts GitHub, npm or a CDN at runtime.
+
+Generated runtime files are ignored by Git so the source checkout remains small; CI and Pages prepare and verify them before browser testing/deployment. This pin deliberately uses 7-Zip 26.03 rather than older 24.x/25.x WASM builds because archive parsing is a security-sensitive dependency and later 26.x releases include relevant parser fixes.
+
+## Migration from the original layout
+
+The original project stored `index.html` and `assets/` at repository root. Merely extracting a new release over an existing checkout does not delete tracked Git files.
+
+After upgrading, remove the old application explicitly:
+
+```bash
+git rm -r assets index.html
+```
+
+Then verify:
+
+```bash
+npm run layout:check
+```
+
+This prevents the old root files from causing style/CI failures or being accidentally deployed alongside `/public`.
+
+See [`docs/MIGRATION.md`](docs/MIGRATION.md).
 
 ## Hosting
 
-Point the web server document root at `public/`. See [docs/HOSTING.md](docs/HOSTING.md) for GitHub Pages and Nginx examples, including recommended response headers.
+Build the generated runtime first and publish **only `public/`**:
 
-## Browser and memory considerations
+```bash
+npm run build:public
+```
 
-Encryption and decryption currently load the complete file into browser memory. The UI warns for files of 250 MiB or larger. Very large-file streaming is deliberately not implemented in v2 because a secure streaming authenticated-encryption format should be designed explicitly rather than bolted onto AES-GCM.
+GitHub Pages deployment is configured in `.github/workflows/deploy-pages.yml`.
 
-## Credits
+For other servers, see [`docs/HOSTING.md`](docs/HOSTING.md).
 
-The original project was adapted from [meixler/web-browser-based-file-encryption-decryption](https://github.com/meixler/web-browser-based-file-encryption-decryption). SecurBrowser v2 substantially restructures the application and introduces a new authenticated file format while preserving legacy decryption compatibility.
+## Security
+
+Read [`SECURITY.md`](SECURITY.md) for the threat model, limitations and vulnerability reporting process.
+
+Important limitations include:
+
+- File/archive operations use browser memory and are not suitable for arbitrarily large data sets.
+- Secure File legacy CBC decryption cannot authenticate legacy ciphertext.
+- A hostile or compromised hosting origin can replace JavaScript served to the browser.
+- 7z security parameters are defined by the 7z format/implementation; they are not the PBKDF2-SHA512 + AES-GCM construction used by Secure File.
+- `.7z` extraction is an attack surface. SecurBrowser limits accepted format/paths/sizes and performs extraction only inside the worker's virtual filesystem before any explicit save operation.
+
+Security reports: `security@safesploit.com`.
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE).
+SecurBrowser Toolkit is licensed under the MIT Licence. sevenzip-wasm and the generated 7-Zip runtime retain their upstream licence terms; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

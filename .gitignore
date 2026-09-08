@@ -7,3 +7,7 @@ coverage/
 .DS_Store
 .idea/
 .vscode/
+
+# Generated, pinned sevenzip-wasm / 7-Zip WASM runtime assets
+public/vendor/sevenzip-wasm/*
+!public/vendor/sevenzip-wasm/.gitkeep

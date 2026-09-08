@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Encrypt and decrypt files locally in your browser with SecurBrowser Toolkit."
+      content="Encrypt files and create password-protected 7z archives locally in your browser with SecurBrowser Toolkit."
     />
     <meta name="referrer" content="no-referrer" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'"
     />
-    <title>SecurBrowser Toolkit — Local File Encryption</title>
+    <title>SecurBrowser Toolkit — Private Browser Encryption</title>
     <link rel="stylesheet" href="assets/css/app.css" />
   </head>
   <body>
@@ -24,7 +24,7 @@
           <span class="brand__mark" aria-hidden="true">S</span>
           <span>
             <strong>SecurBrowser Toolkit</strong>
-            <small>Local file encryption</small>
+            <small>Private browser encryption</small>
           </span>
         </a>
         <div class="header-actions">
@@ -46,89 +46,211 @@
     <main id="app" class="page-shell">
       <section class="intro" aria-labelledby="page-title">
         <p class="eyebrow">Private by design</p>
-        <h1 id="page-title">Encrypt files without uploading them.</h1>
+        <h1 id="page-title">Protect files without uploading them.</h1>
         <p>
-          Encryption and decryption happen entirely in this browser. Your file and passphrase
-          are never sent to SecurBrowser Toolkit.
+          Encrypt a file with authenticated browser-native cryptography, or create a standard
+          encrypted 7z archive that recipients can open with normal 7z-compatible software.
         </p>
       </section>
 
       <p id="crypto-support" class="status" data-type="error" role="alert" hidden></p>
 
-      <section class="tool-card" aria-label="File encryption and decryption tool">
-        <div class="mode-tabs" role="tablist" aria-label="Choose operation">
+      <section class="tool-card" aria-label="SecurBrowser encryption tools">
+        <div class="tool-family-tabs" role="tablist" aria-label="Choose SecurBrowser tool">
           <button
-            id="tab-encrypt"
-            class="mode-tab"
+            id="tab-tool-file"
+            class="tool-family-tab"
             type="button"
             role="tab"
-            aria-controls="panel-encrypt"
+            aria-controls="tool-file"
             aria-selected="true"
           >
-            <span aria-hidden="true">🔒</span> Encrypt
+            <span class="tool-family-tab__icon" aria-hidden="true">🔐</span>
+            <span>
+              <strong>Secure File</strong>
+              <small>Authenticated Web Crypto format</small>
+            </span>
           </button>
           <button
-            id="tab-decrypt"
-            class="mode-tab"
+            id="tab-tool-archive"
+            class="tool-family-tab"
             type="button"
             role="tab"
-            aria-controls="panel-decrypt"
+            aria-controls="tool-archive"
             aria-selected="false"
             tabindex="-1"
           >
-            <span aria-hidden="true">🔓</span> Decrypt
+            <span class="tool-family-tab__icon" aria-hidden="true">📦</span>
+            <span>
+              <strong>Secure Archive</strong>
+              <small>Interoperable encrypted 7z</small>
+            </span>
           </button>
         </div>
 
-        <section
-          id="panel-encrypt"
-          class="tool-panel"
-          role="tabpanel"
-          aria-labelledby="tab-encrypt"
-        >
-          <div class="panel-heading">
-            <div>
-              <h2>Encrypt a file</h2>
-              <p>Create a new authenticated <code>.enc</code> file using the v2 format.</p>
-            </div>
-            <span class="format-badge">AES-256-GCM</span>
+        <section id="tool-file" role="tabpanel" aria-labelledby="tab-tool-file">
+          <div class="mode-tabs" role="tablist" aria-label="Choose secure file operation">
+            <button
+              id="tab-encrypt"
+              class="mode-tab"
+              type="button"
+              role="tab"
+              aria-controls="panel-encrypt"
+              aria-selected="true"
+            >
+              <span aria-hidden="true">🔒</span> Encrypt
+            </button>
+            <button
+              id="tab-decrypt"
+              class="mode-tab"
+              type="button"
+              role="tab"
+              aria-controls="panel-decrypt"
+              aria-selected="false"
+              tabindex="-1"
+            >
+              <span aria-hidden="true">🔓</span> Decrypt
+            </button>
           </div>
 
-          <form id="encrypt-form" autocomplete="off" novalidate>
-            <div class="form-section">
-              <label id="encrypt-dropzone" class="dropzone" for="encrypt-file">
-                <span class="dropzone__icon" aria-hidden="true">⇧</span>
-                <strong>Drop a file here</strong>
-                <span>or choose a file from this device</span>
-                <span class="button button--secondary" aria-hidden="true">Choose file</span>
-              </label>
-              <input id="encrypt-file" class="visually-hidden" type="file" />
-
-              <div id="encrypt-file-meta" class="file-meta" hidden>
-                <span class="file-meta__icon" aria-hidden="true">📄</span>
-                <span class="file-meta__name" id="encrypt-file-name"></span>
-                <span class="file-meta__size" id="encrypt-file-size"></span>
+          <section
+            id="panel-encrypt"
+            class="tool-panel"
+            role="tabpanel"
+            aria-labelledby="tab-encrypt"
+          >
+            <div class="panel-heading">
+              <div>
+                <h2>Encrypt a file</h2>
+                <p>Create an authenticated <code>.enc</code> file using the SecurBrowser v2 format.</p>
               </div>
-              <p id="encrypt-large-warning" class="inline-warning" hidden>
-                Large file: SecurBrowser currently processes the whole file in browser memory.
+              <span class="format-badge">AES-256-GCM</span>
+            </div>
+
+            <form id="encrypt-form" autocomplete="off" novalidate>
+              <div class="form-section">
+                <label id="encrypt-dropzone" class="dropzone" for="encrypt-file">
+                  <span class="dropzone__icon" aria-hidden="true">⇧</span>
+                  <strong>Drop a file here</strong>
+                  <span>or choose a file from this device</span>
+                  <span class="button button--secondary" aria-hidden="true">Choose file</span>
+                </label>
+                <input id="encrypt-file" class="visually-hidden" type="file" />
+
+                <div id="encrypt-file-meta" class="file-meta" hidden>
+                  <span class="file-meta__icon" aria-hidden="true">📄</span>
+                  <span class="file-meta__name" id="encrypt-file-name"></span>
+                  <span class="file-meta__size" id="encrypt-file-size"></span>
+                </div>
+                <p id="encrypt-large-warning" class="inline-warning" hidden>
+                  Large file: SecurBrowser currently processes the whole file in browser memory.
+                </p>
+              </div>
+
+              <div class="form-grid">
+                <div class="field">
+                  <label for="encrypt-passphrase">Passphrase</label>
+                  <div class="password-field">
+                    <input
+                      id="encrypt-passphrase"
+                      type="password"
+                      minlength="8"
+                      autocomplete="off"
+                      required
+                    />
+                    <button
+                      class="password-toggle"
+                      type="button"
+                      data-password-toggle="encrypt-passphrase"
+                      aria-label="Show passphrase"
+                    >
+                      Show
+                    </button>
+                  </div>
+                </div>
+
+                <div class="field">
+                  <label for="encrypt-confirm">Confirm passphrase</label>
+                  <div class="password-field">
+                    <input
+                      id="encrypt-confirm"
+                      type="password"
+                      minlength="8"
+                      autocomplete="off"
+                      required
+                    />
+                    <button
+                      class="password-toggle"
+                      type="button"
+                      data-password-toggle="encrypt-confirm"
+                      aria-label="Show passphrase"
+                    >
+                      Show
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <p id="passphrase-match" class="field-help" data-state="neutral">
+                Use at least 8 characters; a longer passphrase is recommended.
               </p>
+
+              <div class="action-row">
+                <button id="encrypt-submit" class="button button--primary" type="submit" disabled>
+                  Encrypt file
+                </button>
+                <a id="encrypt-download" class="button button--success" href="#" hidden>
+                  Download encrypted file
+                </a>
+              </div>
+
+              <p id="encrypt-status" class="status" role="status" aria-live="polite" hidden></p>
+            </form>
+          </section>
+
+          <section
+            id="panel-decrypt"
+            class="tool-panel"
+            role="tabpanel"
+            aria-labelledby="tab-decrypt"
+            hidden
+          >
+            <div class="panel-heading">
+              <div>
+                <h2>Decrypt a file</h2>
+                <p>Decrypt authenticated v2 files or compatible legacy <code>Salted__</code> files.</p>
+              </div>
+              <span class="format-badge">v2 + legacy</span>
             </div>
 
-            <div class="form-grid">
-              <div class="field">
-                <label for="encrypt-passphrase">Passphrase</label>
+            <form id="decrypt-form" autocomplete="off" novalidate>
+              <div class="form-section">
+                <label id="decrypt-dropzone" class="dropzone" for="decrypt-file">
+                  <span class="dropzone__icon" aria-hidden="true">⇧</span>
+                  <strong>Drop an encrypted file here</strong>
+                  <span>or choose a file from this device</span>
+                  <span class="button button--secondary" aria-hidden="true">Choose file</span>
+                </label>
+                <input id="decrypt-file" class="visually-hidden" type="file" />
+
+                <div id="decrypt-file-meta" class="file-meta" hidden>
+                  <span class="file-meta__icon" aria-hidden="true">📄</span>
+                  <span class="file-meta__name" id="decrypt-file-name"></span>
+                  <span class="file-meta__size" id="decrypt-file-size"></span>
+                </div>
+                <p id="decrypt-large-warning" class="inline-warning" hidden>
+                  Large file: SecurBrowser currently processes the whole file in browser memory.
+                </p>
+              </div>
+
+              <div class="field field--single">
+                <label for="decrypt-passphrase">Passphrase</label>
                 <div class="password-field">
-                  <input
-                    id="encrypt-passphrase"
-                    type="password"
-                    minlength="8"
-                    autocomplete="off"
-                    required
-                  />
+                  <input id="decrypt-passphrase" type="password" autocomplete="off" required />
                   <button
                     class="password-toggle"
                     type="button"
-                    data-password-toggle="encrypt-passphrase"
+                    data-password-toggle="decrypt-passphrase"
                     aria-label="Show passphrase"
                   >
                     Show
@@ -136,111 +258,302 @@
                 </div>
               </div>
 
-              <div class="field">
-                <label for="encrypt-confirm">Confirm passphrase</label>
-                <div class="password-field">
-                  <input
-                    id="encrypt-confirm"
-                    type="password"
-                    minlength="8"
-                    autocomplete="off"
-                    required
-                  />
-                  <button
-                    class="password-toggle"
-                    type="button"
-                    data-password-toggle="encrypt-confirm"
-                    aria-label="Show passphrase"
-                  >
-                    Show
-                  </button>
-                </div>
+              <div class="action-row">
+                <button id="decrypt-submit" class="button button--primary" type="submit" disabled>
+                  Decrypt file
+                </button>
+                <a id="decrypt-download" class="button button--success" href="#" hidden>
+                  Download decrypted file
+                </a>
               </div>
-            </div>
 
-            <p id="passphrase-match" class="field-help" data-state="neutral">
-              Use at least 8 characters; a longer passphrase is recommended.
-            </p>
-
-            <div class="action-row">
-              <button id="encrypt-submit" class="button button--primary" type="submit" disabled>
-                Encrypt file
-              </button>
-              <a id="encrypt-download" class="button button--success" href="#" hidden>
-                Download encrypted file
-              </a>
-            </div>
-
-            <p id="encrypt-status" class="status" role="status" aria-live="polite" hidden></p>
-          </form>
+              <p id="decrypt-status" class="status" role="status" aria-live="polite" hidden></p>
+            </form>
+          </section>
         </section>
 
-        <section
-          id="panel-decrypt"
-          class="tool-panel"
-          role="tabpanel"
-          aria-labelledby="tab-decrypt"
-          hidden
-        >
-          <div class="panel-heading">
-            <div>
-              <h2>Decrypt a file</h2>
-              <p>Decrypt authenticated v2 files or compatible legacy <code>Salted__</code> files.</p>
-            </div>
-            <span class="format-badge">v2 + legacy</span>
+        <section id="tool-archive" role="tabpanel" aria-labelledby="tab-tool-archive" hidden>
+          <div class="mode-tabs" role="tablist" aria-label="Choose secure archive operation">
+            <button
+              id="tab-archive-create"
+              class="mode-tab"
+              type="button"
+              role="tab"
+              aria-controls="panel-archive-create"
+              aria-selected="true"
+            >
+              <span aria-hidden="true">📦</span> Create 7z
+            </button>
+            <button
+              id="tab-archive-extract"
+              class="mode-tab"
+              type="button"
+              role="tab"
+              aria-controls="panel-archive-extract"
+              aria-selected="false"
+              tabindex="-1"
+            >
+              <span aria-hidden="true">📂</span> Extract 7z
+            </button>
           </div>
 
-          <form id="decrypt-form" autocomplete="off" novalidate>
-            <div class="form-section">
-              <label id="decrypt-dropzone" class="dropzone" for="decrypt-file">
-                <span class="dropzone__icon" aria-hidden="true">⇧</span>
-                <strong>Drop an encrypted file here</strong>
-                <span>or choose a file from this device</span>
-                <span class="button button--secondary" aria-hidden="true">Choose file</span>
-              </label>
-              <input id="decrypt-file" class="visually-hidden" type="file" />
-
-              <div id="decrypt-file-meta" class="file-meta" hidden>
-                <span class="file-meta__icon" aria-hidden="true">📄</span>
-                <span class="file-meta__name" id="decrypt-file-name"></span>
-                <span class="file-meta__size" id="decrypt-file-size"></span>
+          <section
+            id="panel-archive-create"
+            class="tool-panel"
+            role="tabpanel"
+            aria-labelledby="tab-archive-create"
+          >
+            <div class="panel-heading">
+              <div>
+                <h2>Create an encrypted 7z archive</h2>
+                <p>
+                  Package multiple files or a folder into a standard AES-256 encrypted archive.
+                  Filenames are always encrypted.
+                </p>
               </div>
-              <p id="decrypt-large-warning" class="inline-warning" hidden>
-                Large file: SecurBrowser currently processes the whole file in browser memory.
-              </p>
+              <span class="format-badge">7z · AES-256</span>
             </div>
 
-            <div class="field field--single">
-              <label for="decrypt-passphrase">Passphrase</label>
-              <div class="password-field">
-                <input
-                  id="decrypt-passphrase"
-                  type="password"
-                  autocomplete="off"
-                  required
-                />
+            <form id="archive-create-form" autocomplete="off" novalidate>
+              <div class="form-section">
+                <label id="archive-create-dropzone" class="dropzone" for="archive-create-files">
+                  <span class="dropzone__icon" aria-hidden="true">⇧</span>
+                  <strong>Drop files here</strong>
+                  <span>or choose one or more files from this device</span>
+                  <span class="button button--secondary" aria-hidden="true">Add files</span>
+                </label>
+                <input id="archive-create-files" class="visually-hidden" type="file" multiple />
+                <input id="archive-create-folder" class="visually-hidden" type="file" multiple />
+
+                <div class="selection-actions">
+                  <button id="archive-add-folder" class="button button--secondary" type="button">
+                    Add folder
+                  </button>
+                  <button id="archive-clear-files" class="button button--quiet" type="button" disabled>
+                    Clear selection
+                  </button>
+                </div>
+
+                <div id="archive-create-selection" class="archive-selection" hidden>
+                  <div class="archive-selection__summary">
+                    <strong id="archive-create-count"></strong>
+                    <span id="archive-create-size"></span>
+                  </div>
+                  <ul id="archive-create-file-list" class="file-list"></ul>
+                </div>
+                <p id="archive-create-large-warning" class="inline-warning" hidden>
+                  Large selection: archive creation uses an in-memory WebAssembly filesystem and may
+                  require substantially more memory than the source files alone.
+                </p>
+              </div>
+
+              <div class="form-grid form-grid--archive">
+                <div class="field">
+                  <label for="archive-name">Archive name</label>
+                  <input id="archive-name" class="text-input" type="text" value="secure-files" />
+                  <p class="field-help">The <code>.7z</code> extension is added automatically.</p>
+                </div>
+                <div class="field">
+                  <label for="archive-compression">Compression</label>
+                  <select id="archive-compression" class="text-input">
+                    <option value="0">Store — no compression</option>
+                    <option value="3">Fast</option>
+                    <option value="5" selected>Normal — recommended</option>
+                    <option value="9">Maximum — slower</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-grid">
+                <div class="field">
+                  <label for="archive-create-passphrase">Passphrase</label>
+                  <div class="password-field">
+                    <input
+                      id="archive-create-passphrase"
+                      type="password"
+                      minlength="12"
+                      autocomplete="off"
+                      required
+                    />
+                    <button
+                      class="password-toggle"
+                      type="button"
+                      data-password-toggle="archive-create-passphrase"
+                      aria-label="Show passphrase"
+                    >
+                      Show
+                    </button>
+                  </div>
+                </div>
+
+                <div class="field">
+                  <label for="archive-create-confirm">Confirm passphrase</label>
+                  <div class="password-field">
+                    <input
+                      id="archive-create-confirm"
+                      type="password"
+                      minlength="12"
+                      autocomplete="off"
+                      required
+                    />
+                    <button
+                      class="password-toggle"
+                      type="button"
+                      data-password-toggle="archive-create-confirm"
+                      aria-label="Show passphrase"
+                    >
+                      Show
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <p id="archive-passphrase-match" class="field-help" data-state="neutral">
+                Use at least 12 characters. Filenames and file contents are encrypted.
+              </p>
+
+              <div class="archive-security-note" aria-label="Archive security settings">
+                <span aria-hidden="true">🛡️</span>
+                <div>
+                  <strong>Filename encryption is always enabled</strong>
+                  <span>
+                    SecurBrowser always passes 7-Zip header encryption (<code>-mhe=on</code>), so
+                    filenames cannot be listed with an incorrect passphrase.
+                  </span>
+                </div>
+              </div>
+
+              <div class="action-row">
                 <button
-                  class="password-toggle"
-                  type="button"
-                  data-password-toggle="decrypt-passphrase"
-                  aria-label="Show passphrase"
+                  id="archive-create-submit"
+                  class="button button--primary"
+                  type="submit"
+                  disabled
                 >
-                  Show
+                  Create secure 7z
+                </button>
+                <a id="archive-create-download" class="button button--success" href="#" hidden>
+                  Download archive
+                </a>
+              </div>
+
+              <p
+                id="archive-create-status"
+                class="status"
+                role="status"
+                aria-live="polite"
+                hidden
+              ></p>
+            </form>
+          </section>
+
+          <section
+            id="panel-archive-extract"
+            class="tool-panel"
+            role="tabpanel"
+            aria-labelledby="tab-archive-extract"
+            hidden
+          >
+            <div class="panel-heading">
+              <div>
+                <h2>Decrypt and extract a 7z archive</h2>
+                <p>
+                  Open a password-protected 7z archive locally. Extracted files can be downloaded
+                  individually or saved to a folder where the browser supports it.
+                </p>
+              </div>
+              <span class="format-badge">7z extract</span>
+            </div>
+
+            <form id="archive-extract-form" autocomplete="off" novalidate>
+              <div class="form-section">
+                <label id="archive-extract-dropzone" class="dropzone" for="archive-extract-file">
+                  <span class="dropzone__icon" aria-hidden="true">⇧</span>
+                  <strong>Drop a 7z archive here</strong>
+                  <span>or choose a <code>.7z</code> file from this device</span>
+                  <span class="button button--secondary" aria-hidden="true">Choose archive</span>
+                </label>
+                <input
+                  id="archive-extract-file"
+                  class="visually-hidden"
+                  type="file"
+                  accept=".7z,application/x-7z-compressed"
+                />
+
+                <div id="archive-extract-file-meta" class="file-meta" hidden>
+                  <span class="file-meta__icon" aria-hidden="true">📦</span>
+                  <span class="file-meta__name" id="archive-extract-file-name"></span>
+                  <span class="file-meta__size" id="archive-extract-file-size"></span>
+                </div>
+                <p id="archive-extract-large-warning" class="inline-warning" hidden>
+                  Large archive: extraction occurs in browser memory. SecurBrowser also rejects
+                  archives that declare excessive extracted size or file counts.
+                </p>
+              </div>
+
+              <div class="field field--single">
+                <label for="archive-extract-passphrase">Passphrase</label>
+                <div class="password-field">
+                  <input
+                    id="archive-extract-passphrase"
+                    type="password"
+                    autocomplete="off"
+                    required
+                  />
+                  <button
+                    class="password-toggle"
+                    type="button"
+                    data-password-toggle="archive-extract-passphrase"
+                    aria-label="Show passphrase"
+                  >
+                    Show
+                  </button>
+                </div>
+              </div>
+
+              <p class="field-help">
+                Safety guard: at most 2,000 entries, a 1 GiB archive input and 1 GiB declared
+                uncompressed data.
+              </p>
+
+              <div class="action-row">
+                <button
+                  id="archive-extract-submit"
+                  class="button button--primary"
+                  type="submit"
+                  disabled
+                >
+                  Decrypt and extract
+                </button>
+                <button
+                  id="archive-save-all"
+                  class="button button--success"
+                  type="button"
+                  hidden
+                >
+                  Save all to folder
                 </button>
               </div>
-            </div>
 
-            <div class="action-row">
-              <button id="decrypt-submit" class="button button--primary" type="submit" disabled>
-                Decrypt file
-              </button>
-              <a id="decrypt-download" class="button button--success" href="#" hidden>
-                Download decrypted file
-              </a>
-            </div>
+              <p
+                id="archive-extract-status"
+                class="status"
+                role="status"
+                aria-live="polite"
+                hidden
+              ></p>
 
-            <p id="decrypt-status" class="status" role="status" aria-live="polite" hidden></p>
-          </form>
+              <section id="archive-extract-results" class="extract-results" hidden>
+                <div class="extract-results__heading">
+                  <div>
+                    <h3>Extracted files</h3>
+                    <p id="archive-extract-summary"></p>
+                  </div>
+                </div>
+                <ul id="archive-extract-list" class="extract-list"></ul>
+              </section>
+            </form>
+          </section>
         </section>
       </section>
 
@@ -248,46 +561,70 @@
         <div class="security-summary__heading">
           <span class="security-summary__icon" aria-hidden="true">🛡️</span>
           <div>
-            <h2 id="security-title">What protects a v2 file?</h2>
-            <p>No uploads, accounts, analytics or third-party runtime libraries.</p>
+            <h2 id="security-title">Two formats, two different goals</h2>
+            <p>Both operate locally. Choose authenticated native encryption or standard 7z interoperability.</p>
           </div>
         </div>
 
-        <dl class="security-grid">
-          <div>
-            <dt>Key derivation</dt>
-            <dd>PBKDF2-HMAC-SHA512</dd>
-          </div>
-          <div>
-            <dt>Work factor</dt>
-            <dd>220,000 iterations</dd>
-          </div>
-          <div>
-            <dt>Encryption</dt>
-            <dd>AES-256-GCM</dd>
-          </div>
-          <div>
-            <dt>Randomness</dt>
-            <dd>128-bit salt + 96-bit nonce</dd>
-          </div>
-        </dl>
+        <div class="security-profile-grid">
+          <article class="security-profile">
+            <h3>🔐 Secure File</h3>
+            <dl class="security-grid security-grid--profile">
+              <div>
+                <dt>Key derivation</dt>
+                <dd>PBKDF2-HMAC-SHA512</dd>
+              </div>
+              <div>
+                <dt>Work factor</dt>
+                <dd>220,000 iterations</dd>
+              </div>
+              <div>
+                <dt>Encryption</dt>
+                <dd>AES-256-GCM</dd>
+              </div>
+              <div>
+                <dt>Runtime</dt>
+                <dd>Native Web Crypto</dd>
+              </div>
+            </dl>
+          </article>
+
+          <article class="security-profile">
+            <h3>📦 Secure Archive</h3>
+            <dl class="security-grid security-grid--profile">
+              <div>
+                <dt>Format</dt>
+                <dd>Standard 7z</dd>
+              </div>
+              <div>
+                <dt>Encryption</dt>
+                <dd>7-Zip AES-256</dd>
+              </div>
+              <div>
+                <dt>Metadata</dt>
+                <dd>Headers encrypted</dd>
+              </div>
+              <div>
+                <dt>Runtime</dt>
+                <dd>Pinned sevenzip-wasm / 7-Zip 26.03</dd>
+              </div>
+            </dl>
+          </article>
+        </div>
 
         <details>
-          <summary>Security and compatibility notes</summary>
+          <summary>How local processing works</summary>
           <div class="details-content">
             <p>
-              SecurBrowser v2 authenticates its format metadata and encrypted payload. A wrong
-              passphrase or modified v2 file will fail authentication rather than returning
-              untrusted plaintext.
+              Secure File uses the browser's Web Crypto API. Secure Archive runs pinned sevenzip-wasm/7-Zip 26.03 WebAssembly
+              inside a dedicated worker. The WASM assets are served from the same origin;
+              no CDN is contacted at runtime. SecurBrowser has no upload endpoint and does not transmit
+              selected files or passphrases.
             </p>
             <p>
-              Legacy files created by earlier SecurBrowser versions use PBKDF2-SHA256 with 10,000
-              iterations and AES-256-CBC. They can still be decrypted, but that format does not
-              provide authenticated integrity. New encryption always uses v2.
-            </p>
-            <p>
-              Files are currently loaded into browser memory in full. For very large files, use a
-              desktop encryption tool designed for streaming data.
+              7z archives are created with AES-256 encryption and header encryption. Unlike the custom
+              <code>.enc</code> format, a generated <code>.7z</code> archive can be opened by compatible
+              desktop tools without returning to this website.
             </p>
           </div>
         </details>
@@ -295,7 +632,7 @@
     </main>
 
     <footer class="site-footer">
-      <p>SecurBrowser Toolkit · Browser-local encryption · MIT licensed</p>
+      <p>SecurBrowser Toolkit · Browser-side encryption · Review the source before relying on it.</p>
     </footer>
 
     <script type="module" src="assets/js/app.js"></script>

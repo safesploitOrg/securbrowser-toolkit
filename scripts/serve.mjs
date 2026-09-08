@@ -16,14 +16,15 @@ const MIME_TYPES = {
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
-  ".txt": "text/plain; charset=utf-8"
+  ".txt": "text/plain; charset=utf-8",
+  ".wasm": "application/wasm"
 };
 
 function securityHeaders() {
   return {
     "Cache-Control": "no-store",
     "Content-Security-Policy":
-      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+      "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
     "Cross-Origin-Opener-Policy": "same-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
     "Referrer-Policy": "no-referrer",

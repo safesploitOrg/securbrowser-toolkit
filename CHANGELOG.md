@@ -1,32 +1,45 @@
 # Changelog
 
-## 2.0.0
+## 2.1.0 - 2026-09-08
 
-### Security
+### Added
 
-- Replaced new-file AES-256-CBC encryption with authenticated AES-256-GCM.
-- Replaced the new-file KDF with PBKDF2-HMAC-SHA512 at 220,000 iterations.
-- Increased new-file salt size to 128 bits and use a fresh 96-bit GCM nonce per encryption.
-- Added a versioned binary format whose metadata is authenticated as AES-GCM AAD.
-- Retained read-only compatibility with original `Salted__` PBKDF2-SHA256/AES-CBC files.
-- Added restrictive CSP, referrer policy and documented hosting security headers.
+- Secure Archive mode for standard encrypted 7z creation.
+- AES-256 7z encryption with mandatory encrypted headers/filenames (`-mhe=on`).
+- Multiple-file and folder selection for archive creation.
+- Store/Fast/Normal/Maximum compression presets.
+- Post-creation 7z integrity verification before download.
+- Post-creation verification that archive filenames cannot be listed with an incorrect passphrase.
+- Secure Archive decrypt/extract workflow.
+- Archive signature, unsafe-path, input-size, expansion-size, metadata-output and entry-count checks.
+- Symbolic/special-entry skipping during archive result collection.
+- Individual extracted-file downloads and File System Access API directory saving where supported.
+- Pinned sevenzip-wasm 26.3.0 / 7-Zip 26.03 runtime preparation with immutable-release SHA-256 verification.
+- Archive utility and Playwright archive round-trip tests.
+- Repository layout check with explicit original-layout removal instructions.
+- Secure Archive architecture and third-party licence documentation.
 
-### Architecture
+### Changed
 
-- Moved the complete deployable application under `public/`.
-- Split the original global script into UI, crypto, file-format, file utility and orchestration ES modules.
-- Kept the deployed application at zero production npm dependencies.
+- GitHub Actions upgraded to Node.js 24-capable action majors and Node.js 24 runtime.
+- GitHub Pages workflow now prepares the pinned sevenzip-wasm runtime before publishing `/public/`.
+- Frontend navigation now separates Secure File and Secure Archive workflows.
+- Archive engine selection moved away from older 24.x/25.x WASM builds to a 7-Zip 26.03 build so browser extraction does not knowingly ship a superseded parser.
 
-### Quality
+### Fixed
 
-- Added Vitest unit tests for cryptography, file-format handling and utility functions.
-- Added Playwright end-to-end tests for Chromium, Firefox and WebKit.
-- Added ESLint, Prettier and HTML validation.
-- Added CI, GitHub Pages deployment and Dependabot configuration.
-- Pinned GitHub Actions to full commit SHAs and declared least-privilege workflow permissions.
+- CI no longer reports a wall of trailing-whitespace errors when obsolete root `assets/`/`index.html` remain; the layout check reports the required `git rm` migration instead.
 
-### Frontend
+## 2.0.0 - 2026-09-08
 
-- Rebuilt the interface with semantic HTML, responsive CSS Grid/Flexbox and accessible controls.
-- Added keyboard-accessible operation tabs, file dropzones, labelled fields and live status messages.
-- Added light/dark colour-scheme support and large-file memory warnings.
+### Added
+
+- Versioned SecurBrowser v2 file format.
+- PBKDF2-HMAC-SHA512 key derivation.
+- AES-256-GCM authenticated encryption.
+- Legacy `Salted__` AES-CBC decryption support.
+- `/public/` web-root layout.
+- Modular browser JavaScript.
+- Unit and Playwright tests.
+- GitHub Actions CI and Pages deployment.
+- Responsive accessible frontend.
