@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.1.1 - 2026-09-09
+
+### Changed
+
+- GitHub Actions quality, browser and Pages workflows now use the exact Node.js 26.8.1 Current release, `actions/setup-node` v7.0.0 and `actions/checkout` v7.0.1 (all action references pinned by commit SHA).
+- Unit tests now use Node.js' built-in `node:test` runner; Vitest has been removed.
+- HTML-Validate now layers its Prettier compatibility preset over the recommended rules.
+- Password inputs use explicit `new-password`/`current-password` autocomplete tokens.
+- CI continues independent HTML, unit, lint and style diagnostics after an earlier check fails.
+
+### Added
+
+- Dependency-free static HTML validation for duplicate IDs, missing references, accessible form labels and local asset paths.
+- Explicit CI runtime assertion so logs prove the requested Node.js version was selected.
+
+### Fixed
+
+- HTML validation conflict between Prettier's void-element output and HTML-Validate's default `void-style` expectations.
+- Unlabelled hidden folder-picker control in the Secure Archive create workflow.
+- Unit-test execution no longer depends on Vitest installation or compatibility.
+
 ## 2.1.0 - 2026-09-08
 
 ### Added

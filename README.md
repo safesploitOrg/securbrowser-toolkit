@@ -81,7 +81,7 @@ There must be **no root `index.html` or root `assets/` web application**. If upg
 
 Requirements:
 
-- Node.js 22.16 or later; CI uses Node.js 24.
+- Node.js 22.22.x or 24.8+; CI is pinned to Node.js 26.8.1 with current `setup-node`/`checkout` v7 actions pinned by commit SHA.
 - npm.
 - Network access the first time `public/vendor/sevenzip-wasm/` is populated.
 
@@ -114,11 +114,14 @@ npm run layout:check
 npm run deps:production
 npm run build:public
 npm run style:check
-npm run lint
+npm run validate:html:static
 npm run validate:html
 npm run test:unit
+npm run lint
 npm run test:e2e
 ```
+
+Core unit tests use Node.js' built-in `node:test` runner, so they can run without Vitest or another test framework. `validate:html` first runs a dependency-free structural/accessibility pre-check and then `html-validate`.
 
 The test suite covers:
 

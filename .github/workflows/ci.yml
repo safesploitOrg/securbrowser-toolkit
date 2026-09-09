@@ -13,6 +13,9 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  NODE_VERSION: "26.8.1"
+
 jobs:
   quality:
     name: Quality and unit tests
@@ -21,39 +24,55 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "24"
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Verify Node.js runtime
+        run: |
+          node --version
+          node -e "if (process.version !== 'v${NODE_VERSION}') throw new Error('Unexpected Node.js version: ' + process.version)"
 
       - name: Install development dependencies
+        id: install
         run: npm install --ignore-scripts --no-audit --no-fund
 
       - name: Verify repository layout
+        if: ${{ always() }}
         run: npm run layout:check
 
       - name: Verify zero npm production dependencies
+        if: ${{ always() }}
         run: npm run deps:production
 
       - name: Prepare pinned 7-Zip WASM runtime
+        if: ${{ always() }}
         run: npm run build:public
 
+      - name: Run dependency-free HTML checks
+        if: ${{ always() }}
+        run: npm run validate:html:static
+
+      - name: Validate HTML against html-validate
+        if: ${{ always() && steps.install.outcome == 'success' }}
+        run: npx --no-install html-validate public/index.html
+
+      - name: Run unit tests
+        if: ${{ always() }}
+        run: npm run test:unit
+
+      - name: Lint JavaScript
+        if: ${{ always() && steps.install.outcome == 'success' }}
+        run: npm run lint
+
       - name: Check repository style
+        if: ${{ always() }}
         run: npm run style:check
-
-      # Needs to be re-enabled once the linter and HTML validator are fixed.
-      # - name: Lint JavaScript
-      #   run: npm run lint
-
-      # - name: Validate HTML
-      #   run: npm run validate:html
-
-      # - name: Run unit tests
-      #   run: npm run test:unit
 
   browser:
     name: Browser tests
@@ -63,14 +82,19 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "24"
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Verify Node.js runtime
+        run: |
+          node --version
+          node -e "if (process.version !== 'v${NODE_VERSION}') throw new Error('Unexpected Node.js version: ' + process.version)"
 
       - name: Install development dependencies
         run: npm install --ignore-scripts --no-audit --no-fund

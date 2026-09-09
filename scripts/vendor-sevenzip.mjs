@@ -87,7 +87,7 @@ function extractZip(zip) {
 
 async function fetchBytes(url) {
   const response = await fetch(url, {
-    headers: { "User-Agent": "securbrowser-toolkit-vendor-fetch/2.1.0" },
+    headers: { "User-Agent": "securbrowser-toolkit-vendor-fetch/2.1.1" },
     redirect: "follow",
   });
   if (!response.ok) {

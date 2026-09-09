@@ -25,6 +25,19 @@ npm run layout:check
 
 If those files remain, CI intentionally fails before the style check with an actionable migration message. This is the fix for the old root-file trailing-whitespace CI failure.
 
+## v2.1.0 to v2.1.1
+
+v2.1.1 is a CI and validation hardening release:
+
+- GitHub Actions are pinned to Node.js 26.8.1 Current, `actions/setup-node` v7.0.0 and `actions/checkout` v7.0.1.
+- Unit tests use Node.js `node:test` and no longer require Vitest.
+- HTML validation adds a dependency-free pre-check for duplicate IDs, broken references, missing accessible labels and missing local assets.
+- `html-validate:prettier` is layered over the recommended rules so Prettier's void-element formatting does not conflict with HTML-Validate.
+- Password fields use explicit autocomplete tokens accepted by current HTML-Validate security rules.
+- CI uses `always()` for independent diagnostics so an earlier lint or validation failure no longer hides later unit/style results.
+
+No Secure File or Secure Archive file format changes are introduced.
+
 ## v2.0.0 to v2.1.0
 
 v2.1.0 adds Secure Archive:

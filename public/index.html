@@ -155,7 +155,7 @@
                       id="encrypt-passphrase"
                       type="password"
                       minlength="8"
-                      autocomplete="off"
+                      autocomplete="new-password"
                       required
                     />
                     <button
@@ -176,7 +176,7 @@
                       id="encrypt-confirm"
                       type="password"
                       minlength="8"
-                      autocomplete="off"
+                      autocomplete="new-password"
                       required
                     />
                     <button
@@ -246,7 +246,7 @@
               <div class="field field--single">
                 <label for="decrypt-passphrase">Passphrase</label>
                 <div class="password-field">
-                  <input id="decrypt-passphrase" type="password" autocomplete="off" required />
+                  <input id="decrypt-passphrase" type="password" autocomplete="current-password" required />
                   <button
                     class="password-toggle"
                     type="button"
@@ -323,7 +323,13 @@
                   <span class="button button--secondary" aria-hidden="true">Add files</span>
                 </label>
                 <input id="archive-create-files" class="visually-hidden" type="file" multiple />
-                <input id="archive-create-folder" class="visually-hidden" type="file" multiple />
+                <input
+                  id="archive-create-folder"
+                  class="visually-hidden"
+                  type="file"
+                  multiple
+                  aria-label="Choose folder for secure archive"
+                />
 
                 <div class="selection-actions">
                   <button id="archive-add-folder" class="button button--secondary" type="button">
@@ -372,7 +378,7 @@
                       id="archive-create-passphrase"
                       type="password"
                       minlength="12"
-                      autocomplete="off"
+                      autocomplete="new-password"
                       required
                     />
                     <button
@@ -393,7 +399,7 @@
                       id="archive-create-confirm"
                       type="password"
                       minlength="12"
-                      autocomplete="off"
+                      autocomplete="new-password"
                       required
                     />
                     <button
@@ -497,7 +503,7 @@
                   <input
                     id="archive-extract-passphrase"
                     type="password"
-                    autocomplete="off"
+                    autocomplete="current-password"
                     required
                   />
                   <button

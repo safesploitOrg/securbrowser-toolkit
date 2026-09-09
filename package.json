@@ -1,6 +1,6 @@
 {
   "name": "securbrowser-toolkit",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "private": true,
   "type": "module",
   "description": "Browser-side authenticated file encryption and interoperable encrypted 7z archives.",
@@ -11,26 +11,27 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint public/assets/js tests scripts playwright.config.js",
-    "validate:html": "html-validate public/index.html",
+    "validate:html": "npm run validate:html:static && html-validate public/index.html",
     "test": "npm run test:unit && npm run test:e2e",
-    "test:unit": "vitest run tests/unit",
+    "test:unit": "node --test tests/unit/*.test.js",
     "test:e2e": "npm run build:public && playwright test",
     "test:e2e:chromium": "npm run build:public && playwright test --project=chromium",
-    "check": "npm run layout:check && npm run deps:production && npm run build:public && npm run style:check && npm run lint && npm run validate:html && npm run test:unit",
+    "check": "npm run layout:check && npm run deps:production && npm run build:public && npm run validate:html && npm run test:unit && npm run lint && npm run style:check",
     "deps:production": "node scripts/check-production-deps.mjs",
     "style:check": "node scripts/check-style.mjs",
     "layout:check": "node scripts/check-layout.mjs",
     "vendor:sevenzip": "node scripts/vendor-sevenzip.mjs",
-    "vendor:sevenzip:check": "node scripts/check-vendor-sevenzip.mjs"
+    "vendor:sevenzip:check": "node scripts/check-vendor-sevenzip.mjs",
+    "validate:html:static": "node scripts/check-html-static.mjs",
+    "check:offline": "npm run layout:check && npm run deps:production && npm run style:check && npm run validate:html:static && npm run test:unit && node scripts/self-test.mjs"
   },
   "engines": {
-    "node": ">=22.16.0"
+    "node": "^22.22.0 || >=24.8.0"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
     "eslint": "10.9.1",
     "html-validate": "11.15.0",
-    "prettier": "3.9.6",
-    "vitest": "5.0.0"
+    "prettier": "3.9.6"
   }
 }

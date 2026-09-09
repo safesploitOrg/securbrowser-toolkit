@@ -27,7 +27,7 @@ After this build step, the deployed `public/` directory is self-contained: the a
 `.github/workflows/deploy-pages.yml`:
 
 1. checks out the exact revision that passed CI;
-2. uses Node.js 24;
+2. uses the exact Node.js 26.8.1 Current runtime;
 3. runs `npm run build:public` to prepare/verify the pinned sevenzip-wasm runtime;
 4. uploads `public/` as the Pages artifact;
 5. deploys it using GitHub's Pages OIDC flow.

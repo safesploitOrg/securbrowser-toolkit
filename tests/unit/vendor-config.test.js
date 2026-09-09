@@ -1,22 +1,22 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { SEVENZIP_VENDOR } from "../../scripts/sevenzip-vendor-config.mjs";
 
 describe("sevenzip-wasm vendor pin", () => {
   it("pins the current 7-Zip 26.03 browser build", () => {
-    expect(SEVENZIP_VENDOR.name).toBe("sevenzip-wasm");
-    expect(SEVENZIP_VENDOR.release).toBe("26.3.0");
-    expect(SEVENZIP_VENDOR.sevenZipVersion).toBe("26.03");
-    expect(SEVENZIP_VENDOR.sourceCommit).toBe(
-      "b4406198ad5399dc277cc13ab288f54b676aa411",
-    );
-    expect(SEVENZIP_VENDOR.assetSha256).toBe(
+    assert.equal(SEVENZIP_VENDOR.name, "sevenzip-wasm");
+    assert.equal(SEVENZIP_VENDOR.release, "26.3.0");
+    assert.equal(SEVENZIP_VENDOR.sevenZipVersion, "26.03");
+    assert.equal(SEVENZIP_VENDOR.sourceCommit, "b4406198ad5399dc277cc13ab288f54b676aa411");
+    assert.equal(
+      SEVENZIP_VENDOR.assetSha256,
       "db58a8176f63be60c1701dd260b797ff01132f39e54bf40d7c4b205b5b030243",
     );
   });
 
   it("vendors only same-origin runtime and licence files", () => {
-    expect(SEVENZIP_VENDOR.destination).toBe("public/vendor/sevenzip-wasm");
-    expect(SEVENZIP_VENDOR.files).toEqual([
+    assert.equal(SEVENZIP_VENDOR.destination, "public/vendor/sevenzip-wasm");
+    assert.deepEqual(SEVENZIP_VENDOR.files, [
       {
         sourcePath: "sevenzip-wasm/sevenzip-wasm.js",
         outputName: "sevenzip-wasm.js",
