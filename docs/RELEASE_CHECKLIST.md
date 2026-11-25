@@ -5,7 +5,7 @@ Profiles B+D, T2. This checklist records evidence, not approval by the authoring
 ## Bootstrap
 
 - [ ] Use the exact Node version in `.node-version`.
-- [ ] Generate the npm lockfile using `bash scripts/prepare-lockfile.sh` or the manual **Prepare npm lockfile** workflow if no lock exists.
+- [ ] Generate the npm lockfile using `bash scripts/prepare-lockfile.sh` or the **Prepare npm lockfile** workflow (staging push or manual dispatch if available) if no lock exists.
 - [ ] Review the lockfile and verify artifact `SOURCE_COMMIT`, `SHA256SUMS` and `TOOLCHAIN` against the candidate. Commit the lockfile; run `npm run lockfile:check` and `npm ci`.
 - [ ] Review vendored 7-Zip version, upstream parser advisories and pinned release digest; record affected versions, reachability, remediation and any owner-approved risk disposition.
 

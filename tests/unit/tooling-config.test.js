@@ -49,6 +49,17 @@ describe("tooling configuration", () => {
     assert.match(CI_WORKFLOW, /npm run lockfile:check/);
   });
 
+  it("bootstraps the lockfile on staging pushes without weakening normal CI", () => {
+    assert.match(BOOTSTRAP_WORKFLOW, /push:\n    branches: \[staging\]/);
+    assert.match(BOOTSTRAP_WORKFLOW, /paths:\n      - '\.github\/workflows\/prepare-lockfile\.yml'/);
+    assert.doesNotMatch(BOOTSTRAP_WORKFLOW, /^  pull_request(?:_target)?:/m);
+    assert.match(BOOTSTRAP_WORKFLOW, /if \[\[ -e package-lock\.json \|\| -L package-lock\.json \]\]; then\n            npm run lockfile:check/);
+    assert.match(BOOTSTRAP_WORKFLOW, /else\n            bash scripts\/prepare-lockfile\.sh/);
+    assert.equal([...BOOTSTRAP_WORKFLOW.matchAll(/if: steps\.bootstrap\.outputs\.generated == 'true'/g)].length, 2);
+    assert.match(CI_WORKFLOW, /name: Validate committed lockfile\n        run: npm run lockfile:check/);
+    assert.doesNotMatch(CI_WORKFLOW, /scripts\/prepare-lockfile\.sh|npm install --package-lock-only/);
+  });
+
   it("keeps HTML and unit diagnostics independent from earlier quality failures", () => {
     assert.match(CI_WORKFLOW, /Run dependency-free HTML checks[\s\S]*if: \$\{\{ always\(\) \}\}/);
     assert.match(CI_WORKFLOW, /Run unit tests[\s\S]*if: \$\{\{ always\(\) \}\}/);

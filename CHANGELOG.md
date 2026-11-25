@@ -6,6 +6,7 @@
 - Strengthen native 7-Zip testing with executable identity, correct-password listing, exact fatal-error checks, visible-header and truncated-archive negative controls, and an explicitly diagnostic native-only mode.
 - Retain verification evidence and bind the release review reference to the exact candidate commit. Preserve all mandatory gates and cryptographic/UI behaviour.
 - External downloads, native engine, full browser/scanner execution and owner approval remain outstanding in the authoring environment.
+- Staging CI remediation: automatically run the read-only lockfile bootstrap when its workflow or inputs change on `staging`, retain an existing lockfile, and return generated artifacts for manual review. Keep the normal CI lockfile gate unchanged.
 
 ## [2.2.0-rc.1] — 2026-11-25 (candidate, not released)
 

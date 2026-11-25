@@ -20,3 +20,12 @@ Source: v2.2.0-rc.1 supplied archive, based on reviewed main `a24ae4e24d5a3f193b
 | Human T2 approval, branch/environment protection | PENDING | Owner must record exact-commit review and configure controls. |
 
 The application under `public/` is byte-for-byte unchanged from RC.1; no new rendered UI verification is claimed. Previous static renders remain reference material only. A connected runner must generate the real lockfile using the new manual bootstrap or local script, commit it after review, execute all mandatory CI gates and record the human release decision. The candidate cannot be represented as a stable or production-ready release.
+
+
+## Staging CI remediation — 25 November 2026
+
+Observed GitHub run [45660643368](https://github.com/safesploitOrg/securbrowser-toolkit/actions/runs/45660643368), PR #10, staging head `d25cddf6979a153605666919e80475b7b67457e9`: Node 26.8.1, 57/57 unit tests, static HTML, layout, style, Gitleaks and CodeQL passed. The committed lockfile was absent; quality and dependency-audit jobs failed at that prerequisite. HTML-Validate, ESLint, WASM build, browser/axe and native interoperability did not run. The release review and deployment were correctly skipped.
+
+The remediation adds a staging-only push trigger to the read-only bootstrap, preserves the existing lockfile validator and installation checks, and adds a configuration regression test. No runtime application files, dependency versions, release approval conditions or normal CI gates are changed. The revised workflow has not executed on GitHub; the authoring environment still cannot resolve the npm registry. The generated lockfile must be reviewed and committed separately. No remote mutation or human T2 approval is implied.
+
+Local remediation verification: `npm run check:offline` passed with 58/58 unit tests (Node 22.16.0); static HTML, style, layout and crypto self-test passed. Workflow YAML parsed and staging trigger/read-only/artifact condition assertions passed. This is not execution of the revised GitHub workflow.

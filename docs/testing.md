@@ -12,7 +12,16 @@ npm run build:public
 npx playwright install --with-deps chromium firefox webkit
 ```
 
-The optional **Prepare npm lockfile** manual workflow runs the same bootstrap on a connected runner. It installs against the real generated lock in a temporary directory, checks the manifest has not changed and returns the lockfile, source revision, toolchain and hashes as an artifact. Review and commit that lockfile before CI. It has no repository write or deploy permission.
+The **Prepare npm lockfile** workflow runs the same bootstrap on a connected runner. It triggers on pushes to `staging` that modify the workflow, bootstrap scripts, `package.json` or `.node-version`. It may also be manually dispatched once available on the default branch. It installs against the real generated lock in a temporary directory, checks the manifest has not changed and returns the lockfile, source revision, toolchain and hashes as an artifact. If a lockfile already exists, the workflow validates it rather than replacing it; normal CI verifies its installation. It has no repository write or deploy permission.
+
+### Bootstrap a staging pull request without merging
+
+1. Commit the updated bootstrap workflow to `staging` and push it. The ordinary CI can still fail on this first push: that is intentional until the lockfile is committed.
+2. Open the **Prepare npm lockfile** run for that exact staging commit. Confirm the generation and upload steps passed, then download the `npm-lockfile-candidate` artifact.
+3. Inspect `SOURCE_COMMIT`, `TOOLCHAIN` and `package-lock.json`. Copy the reviewed lockfile to the repository root and check both SHA-256 sums using the artifact's `SHA256SUMS` file. On macOS use `shasum -a 256 -c /path/to/extracted/SHA256SUMS` from the repository root; on Linux use `sha256sum -c /path/to/extracted/SHA256SUMS`.
+4. Run `npm run lockfile:check` and, using the pinned Node version and network access, `npm ci --ignore-scripts --no-audit --no-fund`. Commit only the reviewed lockfile to `staging` and push. Inspect the new PR CI run; the bootstrap run itself is not release evidence.
+
+If the bootstrap fails, inspect its actual error. Do not remove the committed-lockfile requirement or merge into `main` to trigger the workflow.
 
 ## Commands
 

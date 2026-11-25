@@ -95,7 +95,7 @@ npm run lockfile:check
 npm ci --ignore-scripts --no-audit --no-fund
 ```
 
-Alternatively, run **Prepare npm lockfile** in GitHub Actions on the candidate branch, download `npm-lockfile-candidate`, verify the source and hashes, and commit the reviewed `package-lock.json`. This read-only bootstrap does not release the site. The normal CI rejects missing or stale lockfiles.
+Alternatively, the read-only **Prepare npm lockfile** workflow runs automatically when its workflow or bootstrap inputs change on `staging`. It can also be manually dispatched once present on the default branch. Download `npm-lockfile-candidate`, verify its source and hashes, and commit the reviewed `package-lock.json` to `staging`. The bootstrap does not overwrite an existing lockfile or release the site. The normal CI rejects missing or stale lockfiles, including on the first bootstrap push. See [Testing](docs/testing.md) for the two-commit procedure.
 
 Prepare and verify the pinned local archive runtime:
 

@@ -3,6 +3,16 @@ name: Prepare npm lockfile
 # Bootstrap only. Does not write to the repository, deploy, or approve a release.
 on:
   workflow_dispatch:
+  # A manual-dispatch workflow must exist on the default branch. Bootstrap
+  # the staging candidate without merging or giving the runner write access.
+  push:
+    branches: [staging]
+    paths:
+      - '.github/workflows/prepare-lockfile.yml'
+      - 'scripts/prepare-lockfile.sh'
+      - 'scripts/check-lockfile.mjs'
+      - 'package.json'
+      - '.node-version'
 
 permissions:
   contents: read
@@ -18,9 +28,21 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
-      - name: Generate and verify real npm lockfile
-        run: bash scripts/prepare-lockfile.sh
+      - name: Generate and verify real npm lockfile if missing
+        id: bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -e package-lock.json || -L package-lock.json ]]; then
+            npm run lockfile:check
+            echo 'Existing lockfile retained; normal CI verifies installation.'
+            echo 'generated=false' >> "$GITHUB_OUTPUT"
+          else
+            bash scripts/prepare-lockfile.sh
+            echo 'generated=true' >> "$GITHUB_OUTPUT"
+          fi
       - name: Record source revision and lockfile digest
+        if: steps.bootstrap.outputs.generated == 'true'
         run: |
           mkdir lockfile-artifact
           cp package-lock.json lockfile-artifact/
@@ -29,6 +51,7 @@ jobs:
           node --version > lockfile-artifact/TOOLCHAIN
           npm --version >> lockfile-artifact/TOOLCHAIN
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.bootstrap.outputs.generated == 'true'
         with:
           name: npm-lockfile-candidate
           path: lockfile-artifact/
