@@ -2,10 +2,12 @@
 
 ## Local prerequisites
 
-Use the exact Node version in `.node-version`, npm, native `7zz` or `7z`, and a supported Playwright Chromium/Firefox/WebKit installation. The candidate ZIP is source-only. Generate the missing lockfile once with network access, inspect it, and commit it before CI:
+Use the exact Node version in `.node-version`, npm, native `7zz` or `7z`, and a supported Playwright Chromium/Firefox/WebKit installation. The candidate ZIP is source-only and includes the GitHub-generated lockfile. If working from a checkout without a lockfile, generate it once with network access, inspect it, and commit it before CI. Bash is also required for the fixture unit test:
 
 ```bash
-bash scripts/prepare-lockfile.sh
+if [[ ! -e package-lock.json ]]; then
+    bash scripts/prepare-lockfile.sh
+fi
 npm run lockfile:check
 npm ci --ignore-scripts --no-audit --no-fund
 npm run build:public
@@ -42,4 +44,4 @@ Use `SEVENZIP_BIN=/path/to/7zz` to select an executable; otherwise prefer `7zz`,
 - Interop: Chromium with actual WASM, native CLI. Synthetic nested directories, binary data, empty and Unicode files, wrong passwords, hidden names, truncated archive, byte comparison in both directions.
 - Security: Gitleaks, npm audit and CodeQL SARIF gate. Review vendored component advisories separately; npm audit does not scan the WASM.
 
-A failed or missing mandatory gate blocks release. Local Chromium navigation was blocked by environment policy; screenshots use the actual static source rendered in Chromium, not a successful E2E run. The npm registry, GitHub binary download and native 7-Zip are unavailable in the authoring environment. No Playwright, vendor execution, native interop, full HTML-Validate, ESLint or security scanner pass is asserted.
+A failed or missing mandatory gate blocks release. GitHub run [45666305045](https://github.com/safesploitOrg/securbrowser-toolkit/actions/runs/45666305045) verified the restored staging baseline: all quality and security jobs passed, 23/27 browser cases passed, and native 7-Zip diagnostics passed; full browser and bidirectional interoperability jobs failed. The subsequent test corrections must be verified in a fresh CI run. The fixture writer is independently checked for genuine UTF-8 filenames and exact binary bytes without requiring 7-Zip. The browser tests configure the initial OS appearance before page creation, wait for actual media-query and computed-style changes, and measure password-toggle geometry in document coordinates rather than viewport coordinates. See [verification](VERIFICATION.md) for exact revision evidence and remaining limitations.

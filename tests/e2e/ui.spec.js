@@ -21,25 +21,36 @@ for (const viewport of VIEWPORTS) {
   });
 }
 
-test("system appearance follows OS and manual choice survives reload without task data", async ({ page }) => {
-  const external = [];
-  page.on("request", (request) => { if (!request.url().startsWith("http://127.0.0.1:4173/") && !request.url().startsWith("blob:")) external.push(request.url()); });
-  await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
-  await page.goto("/");
-  await expect(page.locator("#appearance")).toHaveValue("system");
-  expect(await page.locator("html").evaluate((node) => getComputedStyle(node).colorScheme)).toBe("dark");
-  await page.locator("#appearance").selectOption("light");
-  await page.locator("#encrypt-passphrase").fill("synthetic password only");
-  await page.reload();
-  await expect(page.locator("#appearance")).toHaveValue("light");
-  await expect(page.locator("#encrypt-passphrase")).toHaveValue("");
-  expect(await page.evaluate(() => Object.fromEntries(Object.entries(localStorage)))).toEqual({ "securbrowser.preferences.v1": '{"appearance":"light"}' });
-  await page.locator("#appearance").selectOption("system");
-  await page.emulateMedia({ colorScheme: "light" });
-  expect(await page.locator("html").evaluate((node) => getComputedStyle(node).colorScheme)).toBe("light");
-  expect(external).toEqual([]);
-  await expect(page.locator("footer a")).toHaveAttribute("href", "https://github.com/safesploitOrg/securbrowser-toolkit/");
-  await expect(page.locator("#footer-year")).toHaveText(String(new Date().getFullYear()));
+test.describe("system appearance", () => {
+  // Configure the context before its page is created, including Firefox.
+  test.use({ colorScheme: "dark", reducedMotion: "reduce" });
+  test("system appearance follows OS and manual choice survives reload without task data", async ({ page }) => {
+    const external = [];
+    page.on("request", (request) => { if (!request.url().startsWith("http://127.0.0.1:4173/") && !request.url().startsWith("blob:")) external.push(request.url()); });
+    await page.goto("/");
+    await expect(page.locator("#appearance")).toHaveValue("system");
+    await expect.poll(() => page.evaluate(() => window.matchMedia("(prefers-color-scheme: dark)").matches)).toBe(true);
+    await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
+    await page.locator("#appearance").selectOption("light");
+    await expect(page.locator("html")).toHaveCSS("color-scheme", "light");
+    await page.locator("#encrypt-passphrase").fill("synthetic password only");
+    await page.reload();
+    await expect(page.locator("#appearance")).toHaveValue("light");
+    await expect(page.locator("html")).toHaveCSS("color-scheme", "light");
+    await expect(page.locator("#encrypt-passphrase")).toHaveValue("");
+    expect(await page.evaluate(() => Object.fromEntries(Object.entries(localStorage)))).toEqual({ "securbrowser.preferences.v1": '{"appearance":"light"}' });
+    await page.locator("#appearance").selectOption("system");
+    await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
+    await page.emulateMedia({ colorScheme: "light" });
+    await expect.poll(() => page.evaluate(() => window.matchMedia("(prefers-color-scheme: light)").matches)).toBe(true);
+    await expect(page.locator("html")).toHaveCSS("color-scheme", "light");
+    await page.emulateMedia({ colorScheme: "dark" });
+    await expect.poll(() => page.evaluate(() => window.matchMedia("(prefers-color-scheme: dark)").matches)).toBe(true);
+    await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
+    expect(external).toEqual([]);
+    await expect(page.locator("footer a")).toHaveAttribute("href", "https://github.com/safesploitOrg/securbrowser-toolkit/");
+    await expect(page.locator("#footer-year")).toHaveText(String(new Date().getFullYear()));
+  });
 });
 
 test("keyboard tab navigation, password toggle geometry and reset clear task state", async ({ page }) => {
@@ -50,10 +61,19 @@ test("keyboard tab navigation, password toggle geometry and reset clear task sta
   await page.keyboard.press("ArrowLeft");
   await expect(page.locator("#tab-tool-file")).toBeFocused();
   const toggle = page.locator('[data-password-toggle="encrypt-passphrase"]');
-  const before = await toggle.boundingBox();
+  await toggle.scrollIntoViewIfNeeded();
+  // Use document coordinates: Playwright may scroll when clicking a control.
+  const geometry = () => toggle.evaluate((node) => {
+    const rect = node.getBoundingClientRect();
+    return [rect.x + window.scrollX, rect.y + window.scrollY, rect.width, rect.height];
+  });
+  const before = await geometry();
   await toggle.click();
-  expect(await toggle.boundingBox()).toEqual(before);
   await expect(page.locator("#encrypt-passphrase")).toHaveAttribute("type", "text");
+  const after = await geometry();
+  for (let i = 0; i < before.length; i += 1) {
+    expect(Math.abs(after[i] - before[i])).toBeLessThanOrEqual(0.5);
+  }
   await page.locator("#reset-app").click();
   await expect(page.locator("#encrypt-passphrase")).toHaveAttribute("type", "password");
 });

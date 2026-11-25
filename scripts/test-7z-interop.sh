@@ -34,13 +34,18 @@ resolve_engine() {
   sed -n '1,5p' "$WORK_DIR/engine.txt"
 }
 
-make_fixtures() {
+write_fixtures() {
+  local unicode_name=$'caf\303\251.txt'
   mkdir -p "$WORK_DIR/fixture/nested" "$WORK_DIR/native-out"
   printf 'synthetic archive fixture\n' > "$WORK_DIR/fixture/notes.txt"
   printf '\000\001\002\377\376' > "$WORK_DIR/fixture/nested/binary.dat"
-  printf 'unicode fixture\n' > "$WORK_DIR/fixture/nested/caf\303\251.txt"
+  printf 'unicode fixture\n' > "$WORK_DIR/fixture/nested/$unicode_name"
   printf 'literal filename\n' > "$WORK_DIR/fixture/@literal.txt"
   : > "$WORK_DIR/fixture/empty.bin"
+}
+
+make_fixtures() {
+  write_fixtures
   (cd "$WORK_DIR"; "$SEVENZIP_BIN" a -t7z -mhe=on -mx=5 "-p$TEST_PASSPHRASE" -y -bd native.7z fixture >/dev/null)
   # Truncation is a deterministic corruption fixture; no crafted exploit data.
   head -c 16 "$WORK_DIR/native.7z" > "$WORK_DIR/truncated.7z"
@@ -124,4 +129,7 @@ main() {
   echo 'PASS: native 7-Zip -> WASM extraction and all file byte comparisons'
 }
 
-main "$@"
+# Allow the fixture writer to be tested in an isolated Bash process without 7-Zip.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

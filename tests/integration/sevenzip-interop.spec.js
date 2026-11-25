@@ -18,7 +18,15 @@ async function fixturePaths(root, relative = "") {
 
 test("native 7-Zip and browser WASM exchange real header-encrypted archives", async ({ page }) => {
   if (!WORK_DIR || !PASSPHRASE || !WRONG) throw new Error("Run scripts/test-7z-interop.sh to supply synthetic native fixtures.");
-  const expected = await fixturePaths(WORK_DIR, "fixture");
+  const expected = [
+    "fixture/@literal.txt",
+    "fixture/empty.bin",
+    "fixture/nested/binary.dat",
+    "fixture/nested/caf\u00e9.txt",
+    "fixture/notes.txt",
+  ];
+  // An independent manifest catches malformed fixtures before browser execution.
+  expect(await fixturePaths(WORK_DIR, "fixture")).toEqual(expected);
   await page.goto("/");
   await page.locator("#tab-tool-archive").click();
   await page.locator("#archive-create-folder").setInputFiles(join(WORK_DIR, "fixture"));

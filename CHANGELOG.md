@@ -7,6 +7,9 @@
 - Retain verification evidence and bind the release review reference to the exact candidate commit. Preserve all mandatory gates and cryptographic/UI behaviour.
 - External downloads, native engine, full browser/scanner execution and owner approval remain outstanding in the authoring environment.
 - Staging CI remediation: automatically run the read-only lockfile bootstrap when its workflow or inputs change on `staging`, retain an existing lockfile, and return generated artifacts for manual review. Keep the normal CI lockfile gate unchanged.
+- Restore the full staging tree and commit the genuine CI-generated npm lockfile (90 integrity-pinned packages).
+- Correct the native interoperability fixture to create a real UTF-8 filename rather than literal octal escapes, and independently assert fixture names and contents.
+- Correct browser test setup for initial and changing OS appearance, and measure password-toggle geometry independently of automatic scrolling. All mandatory gates remain enabled; the corrections require a fresh CI run.
 
 ## [2.2.0-rc.1] — 2026-11-25 (candidate, not released)
 

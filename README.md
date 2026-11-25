@@ -84,13 +84,15 @@ There must be **no root `index.html` or root `assets/` web application**. If upg
 Requirements:
 
 - Node.js 22.22.x or 24.8+; CI uses the exact Node version in `.node-version` and SHA-pinned Actions.
-- npm.
+- npm and Bash (the fixture regression test uses an isolated Bash process).
 - Network access the first time `public/vendor/sevenzip-wasm/` is populated.
 
 Install development tooling:
 
 ```bash
-bash scripts/prepare-lockfile.sh # one-time bootstrap if no lockfile; review and commit it
+if [[ ! -e package-lock.json ]]; then
+    bash scripts/prepare-lockfile.sh # review and commit the generated lockfile
+fi
 npm run lockfile:check
 npm ci --ignore-scripts --no-audit --no-fund
 ```
