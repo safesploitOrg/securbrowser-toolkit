@@ -1,0 +1,49 @@
+name: Deploy Pages (CI-gated)
+
+# Not independently dispatchable: only the passing CI workflow calls this.
+on:
+  workflow_call:
+    inputs:
+      approval_reference:
+        type: string
+        required: true
+      approval_commit:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.approval_reference != '' && inputs.approval_commit == github.sha }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: validated-public
+          path: release-bundle
+      - name: Verify candidate before promotion
+        run: cd release-bundle && sha256sum -c SHA256SUMS
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: release-bundle/public
+      - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5
+        id: deployment
+      - name: Check deployed application
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 5 --max-time 30 "${PAGE_URL%/}/" | grep -F 'SecurBrowser Toolkit' >/dev/null
+          curl --fail --silent --show-error --location --retry 5 --max-time 30 --output /tmp/sevenzip.wasm "${PAGE_URL%/}/vendor/sevenzip-wasm/sevenzip-wasm.wasm"
+          test "$(sha256sum /tmp/sevenzip.wasm | cut -d ' ' -f 1)" = "$(sha256sum release-bundle/public/vendor/sevenzip-wasm/sevenzip-wasm.wasm | cut -d ' ' -f 1)"
