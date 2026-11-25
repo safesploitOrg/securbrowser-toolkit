@@ -40,7 +40,7 @@ Secure Archive is intentionally interoperable rather than cryptographically iden
 - Output/input format exposed by the UI: 7z only.
 - Content encryption: AES-256 as implemented by 7-Zip.
 - Header/filename encryption on creation: always enabled with `-mhe=on`.
-- Runtime: pinned sevenzip-wasm 26.3.0, built from 7-Zip 26.03.
+- Runtime: pinned sevenzip-wasm 26.6.0, built from 7-Zip 26.06.
 - Execution: local classic Web Worker with an isolated Emscripten virtual filesystem.
 - Newly created archives are tested with a fresh 7-Zip WASM runtime before download is enabled.
 - Creation also verifies that listing the archive with an intentionally incorrect passphrase fails, so an archive is not offered for download if header encryption is unexpectedly absent.
@@ -63,7 +63,7 @@ A `.7z` supplied for extraction is untrusted input. SecurBrowser therefore:
 10. re-checks the actual collected file count and byte total after extraction;
 11. writes to the user's real filesystem only after an explicit save/download action.
 
-The runtime is pinned to 7-Zip 26.03. Older 24.x and 25.x browser builds evaluated during development were deliberately rejected once newer upstream parser fixes were available. The 7z-only format restriction, path validation, size ceilings and virtual-filesystem containment remain in place as defence in depth.
+The runtime is pinned to 7-Zip 26.06. Older 24.x and 25.x browser builds evaluated during development were deliberately rejected once newer upstream parser fixes were available. The 7z-only format restriction, path validation, size ceilings and virtual-filesystem containment remain in place as defence in depth.
 
 These controls reduce archive traversal/expansion risk but cannot eliminate browser memory exhaustion or all archive-parser vulnerabilities. For hostile archives requiring strong isolation or forensic handling, use an appropriately sandboxed native workflow instead.
 
@@ -73,13 +73,13 @@ Secure Archive does not load runtime code from a CDN.
 
 [`scripts/sevenzip-vendor-config.mjs`](scripts/sevenzip-vendor-config.mjs) pins:
 
-- sevenzip-wasm `26.3.0`;
-- upstream 7-Zip 26.03;
+- sevenzip-wasm `26.6.0`;
+- upstream 7-Zip 26.06;
 - immutable GitHub release asset `sevenzip-wasm.zip`;
-- exact release asset SHA-256 `db58a8176f63be60c1701dd260b797ff01132f39e54bf40d7c4b205b5b030243`;
-- source/tag commit `b4406198ad5399dc277cc13ab288f54b676aa411`.
+- exact release asset SHA-256 `8c4dc98f02d35b6163416ba6a7f330ef321df78f8eebb81943c2af32e04bfdd6`;
+- source/tag commit `eba9a8492d7b5c4c673b69314a6b75eb81f75742`.
 
-`npm run build:public` verifies the release ZIP before extracting `sevenzip-wasm.js`, `sevenzip-wasm.wasm` and the upstream licence into `public/vendor/sevenzip-wasm/`. `npm run vendor:sevenzip:check` verifies the resulting local manifest/assets. The deployed application then uses only these same-origin files.
+`npm run build:public` verifies the release ZIP before extracting `sevenzip-wasm.js`, `sevenzip-wasm.wasm` and the upstream licence into `public/vendor/sevenzip-wasm/`. `npm run vendor:sevenzip:check` verifies the resulting assets and manifest against the original SHA-pinned ZIP cached outside the publishable root. The deployed application then uses only these same-origin files.
 
 Generated vendor content is excluded from repository style/formatting checks but exercised by browser end-to-end tests after the build step.
 
@@ -91,7 +91,7 @@ See `THIRD_PARTY_NOTICES.md` for upstream licence details.
 - Secure Archive creation requires at least 12 characters; longer unique passphrases are strongly recommended.
 - NUL characters are rejected for 7z passphrases because the archive engine is command-line compatible internally.
 - Passphrases are not intentionally persisted to localStorage, sessionStorage, IndexedDB or cookies.
-- Archive worker output is redacted for the active passphrase and raw 7-Zip command arguments are not presented to users.
+- Raw 7-Zip output is kept internal for metadata inspection; user diagnostics are sanitised and command arguments are not presented to users.
 
 ## Memory and large files
 
@@ -136,3 +136,11 @@ SecurBrowser is not:
 - protection against a compromised browser/endpoint;
 - a substitute for organisation-specific data handling requirements;
 - a general-purpose archive viewer for every format supported internally by 7-Zip.
+
+## Release gate and advisory policy
+
+The v2.2.0 candidate uses SFW v1.1.0 and proposed v1.2 frontend guidance. Required CI gates include dependency audit (high/critical blocking), CodeQL (all findings require review), Gitleaks (findings block), unit, browser/axe and native 7-Zip interoperability. A failed or unavailable mandatory gate blocks publication. Active exploitation, exposed credentials and confirmed reachable Critical issues block and require immediate containment. Newly introduced reachable High findings block; triage inherited findings by reachability and exposure, assign a named owner, issue, mitigation and due date (suggested High 7 days, Medium 30 days, Low 90 days). No blanket suppressions. Any allowed exception must satisfy SFW Section 14.
+
+7-Zip 26.06 is pinned after CVE-2026-125742 (CAB LZX decoder; CAB is not an intended exposed format). Force the 7z handler and review upstream advisories including format reachability; no assertion that the pin is vulnerability-free. Reference: https://security-tracker.debian.org/tracker/source-package/7zip and https://github.com/arktronic/sevenzip-wasm/releases/tag/26.6.0.
+
+The 512 MiB Secure File envelope input cap (plaintext cap reserves 60 bytes for the envelope), five-minute worker limit, bounded metadata collection and new-directory save behaviour reduce resource and overwrite risk but cannot guarantee browser memory availability or atomic exclusive filesystem creation. See `docs/threat-model.md`.

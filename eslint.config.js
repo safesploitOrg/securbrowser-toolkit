@@ -6,8 +6,12 @@ export default [
       ecmaVersion: "latest",
       sourceType: "module",
       globals: {
+        AbortController: "readonly",
+        AbortSignal: "readonly",
         Blob: "readonly",
         document: "readonly",
+        getComputedStyle: "readonly",
+        localStorage: "readonly",
         File: "readonly",
         FileReader: "readonly",
         fetch: "readonly",

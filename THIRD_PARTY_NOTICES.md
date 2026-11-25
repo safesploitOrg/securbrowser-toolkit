@@ -7,11 +7,11 @@ Secure Archive uses the `sevenzip-wasm` browser WebAssembly build of the officia
 Pinned upstream details:
 
 - Project: https://github.com/arktronic/sevenzip-wasm
-- Release: `26.3.0`
-- Upstream 7-Zip version: 26.03
-- Source/tag commit: `b4406198ad5399dc277cc13ab288f54b676aa411`
+- Release: `26.6.0`
+- Upstream 7-Zip version: 26.06
+- Source/tag commit: `eba9a8492d7b5c4c673b69314a6b75eb81f75742`
 - Release asset: `sevenzip-wasm.zip`
-- Release asset SHA-256: `db58a8176f63be60c1701dd260b797ff01132f39e54bf40d7c4b205b5b030243`
+- Release asset SHA-256: `8c4dc98f02d35b6163416ba6a7f330ef321df78f8eebb81943c2af32e04bfdd6`
 
 The build generates:
 

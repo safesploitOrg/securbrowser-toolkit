@@ -1,5 +1,7 @@
 # SecurBrowser Toolkit
 
+> **v2.2.0-rc.2:** SFW adoption candidate. Not approved for production release; see `docs/SFW_ADOPTION.md` and `docs/testing.md`.
+
 SecurBrowser Toolkit is a static, browser-side utility for protecting files without uploading them to an application server.
 
 It provides two deliberately different formats:
@@ -33,9 +35,9 @@ See [`docs/FILE_FORMAT.md`](docs/FILE_FORMAT.md).
 - Decrypts and extracts encrypted `.7z` archives locally in the browser.
 - Performs signature, path, entry-count and expansion-size checks before extraction.
 - Skips symbolic links and special entries when collecting extracted data.
-- Extracted files can be downloaded individually; browsers with the File System Access API can save a directory tree directly.
+- Extracted files can be downloaded individually; browsers with the File System Access API can save a directory tree into a new randomly named subfolder.
 
-Secure Archive uses pinned **sevenzip-wasm 26.3.0**, built from **7-Zip 26.03**. The build step verifies GitHub's immutable release asset against SHA-256 `db58a8176f63be60c1701dd260b797ff01132f39e54bf40d7c4b205b5b030243` before extracting `sevenzip-wasm.js`, `sevenzip-wasm.wasm` and the upstream licence into `public/vendor/sevenzip-wasm/`. Runtime code is served locally and is never fetched from a CDN by the application.
+Secure Archive uses pinned **sevenzip-wasm 26.6.0**, built from **7-Zip 26.06**. The build step verifies GitHub's immutable release asset against SHA-256 `8c4dc98f02d35b6163416ba6a7f330ef321df78f8eebb81943c2af32e04bfdd6` before extracting `sevenzip-wasm.js`, `sevenzip-wasm.wasm` and the upstream licence into `public/vendor/sevenzip-wasm/`. Runtime code is served locally and is never fetched from a CDN by the application.
 
 See [`docs/SECURE_ARCHIVE.md`](docs/SECURE_ARCHIVE.md) and [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
@@ -64,7 +66,7 @@ securbrowser-toolkit/
 │   ├── assets/
 │   │   ├── css/
 │   │   └── js/
-│   └── vendor/sevenzip-wasm/ # Generated, pinned 7-Zip 26.03 runtime
+│   └── vendor/sevenzip-wasm/ # Generated, pinned 7-Zip 26.06 runtime
 ├── tests/
 │   ├── unit/
 │   └── e2e/
@@ -81,15 +83,19 @@ There must be **no root `index.html` or root `assets/` web application**. If upg
 
 Requirements:
 
-- Node.js 22.22.x or 24.8+; CI is pinned to Node.js 26.8.1 with current `setup-node`/`checkout` v7 actions pinned by commit SHA.
+- Node.js 22.22.x or 24.8+; CI uses the exact Node version in `.node-version` and SHA-pinned Actions.
 - npm.
 - Network access the first time `public/vendor/sevenzip-wasm/` is populated.
 
 Install development tooling:
 
 ```bash
-npm install --ignore-scripts --no-audit --no-fund
+bash scripts/prepare-lockfile.sh # one-time bootstrap if no lockfile; review and commit it
+npm run lockfile:check
+npm ci --ignore-scripts --no-audit --no-fund
 ```
+
+Alternatively, run **Prepare npm lockfile** in GitHub Actions on the candidate branch, download `npm-lockfile-candidate`, verify the source and hashes, and commit the reviewed `package-lock.json`. This read-only bootstrap does not release the site. The normal CI rejects missing or stale lockfiles.
 
 Prepare and verify the pinned local archive runtime:
 
@@ -108,6 +114,8 @@ Open `http://127.0.0.1:4173/`.
 After `npm run build:public`, the generated `public/` tree is self-contained for runtime hosting; no CDN or application API is required.
 
 ## Testing
+
+See [candidate verification](docs/VERIFICATION.md) and [release checklist](docs/RELEASE_CHECKLIST.md). The native-only diagnostic is `bash scripts/test-7z-interop.sh --native-only`; it is not an interoperability pass.
 
 ```bash
 npm run layout:check
@@ -140,15 +148,15 @@ The Secure Archive browser test creates an encrypted 7z, downloads it, feeds it 
 
 The archive runtime is pinned in [`scripts/sevenzip-vendor-config.mjs`](scripts/sevenzip-vendor-config.mjs) to:
 
-- sevenzip-wasm release `26.3.0`.
-- upstream 7-Zip `26.03`.
+- sevenzip-wasm release `26.6.0`.
+- upstream 7-Zip `26.06`.
 - immutable GitHub release asset `sevenzip-wasm.zip`.
-- release asset SHA-256 `db58a8176f63be60c1701dd260b797ff01132f39e54bf40d7c4b205b5b030243`.
-- source/tag commit `b4406198ad5399dc277cc13ab288f54b676aa411`.
+- release asset SHA-256 `8c4dc98f02d35b6163416ba6a7f330ef321df78f8eebb81943c2af32e04bfdd6`.
+- source/tag commit `eba9a8492d7b5c4c673b69314a6b75eb81f75742`.
 
-`npm run build:public` downloads only that pinned release asset, verifies the complete ZIP before extracting the browser runtime and upstream licence, and writes a local manifest. `npm run vendor:sevenzip:check` then verifies the generated local files against that manifest. The application itself never contacts GitHub, npm or a CDN at runtime.
+`npm run build:public` downloads only that pinned release asset, verifies the complete ZIP before extracting the browser runtime and upstream licence, and writes a local manifest. `npm run vendor:sevenzip:check` then re-derives the expected asset hashes from the original SHA-pinned ZIP, not from the generated manifest alone. The application itself never contacts GitHub, npm or a CDN at runtime.
 
-Generated runtime files are ignored by Git so the source checkout remains small; CI and Pages prepare and verify them before browser testing/deployment. This pin deliberately uses 7-Zip 26.03 rather than older 24.x/25.x WASM builds because archive parsing is a security-sensitive dependency and later 26.x releases include relevant parser fixes.
+Generated runtime files are ignored by Git so the source checkout remains small; CI prepares the runtime once; browser/native tests and Pages use the same checked artifact. This pin deliberately uses 7-Zip 26.06 rather than older 24.x/25.x WASM builds because archive parsing is a security-sensitive dependency and later 26.x releases include relevant parser fixes.
 
 ## Migration from the original layout
 
@@ -178,7 +186,7 @@ Build the generated runtime first and publish **only `public/`**:
 npm run build:public
 ```
 
-GitHub Pages deployment is configured in `.github/workflows/deploy-pages.yml`.
+GitHub Pages deployment is a reusable workflow gated by all jobs in `.github/workflows/ci.yml`; see `docs/operations.md`.
 
 For other servers, see [`docs/HOSTING.md`](docs/HOSTING.md).
 
@@ -199,3 +207,7 @@ Security reports: `security@safesploit.com`.
 ## Licence
 
 SecurBrowser Toolkit is licensed under the MIT Licence. sevenzip-wasm and the generated 7-Zip runtime retain their upstream licence terms; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+## Native archive interoperability and SFW
+
+Run `bash scripts/test-7z-interop.sh` after `npm ci`, `npm run build:public` and Playwright Chromium setup. It tests actual native 7-Zip and browser WASM archives in both directions. See [testing](docs/testing.md), [threat model](docs/threat-model.md), [operations](docs/operations.md) and [SFW adoption](docs/SFW_ADOPTION.md). Theme preferences persist locally; no task inputs are stored.

@@ -29,7 +29,7 @@ The first 44 bytes are passed to AES-GCM as Additional Authenticated Data (AAD).
 3. Derive a 256-bit AES-GCM key with PBKDF2-HMAC-SHA512.
 4. Use the iteration count stored in the file header. New files currently use 220,000 iterations.
 
-The parser accepts iteration counts from 100,000 through 5,000,000. This permits future work-factor increases while rejecting unexpectedly small values and bounding attacker-controlled KDF cost during decryption.
+The parser accepts iteration counts from 220,000 through 5,000,000. This permits future work-factor increases while rejecting unexpectedly small values and bounding attacker-controlled KDF cost during decryption.
 
 ### Encryption
 

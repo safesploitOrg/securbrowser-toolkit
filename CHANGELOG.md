@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.2.0-rc.2] — 2026-11-25 (candidate, not released)
+
+- Add read-only lockfile bootstrap workflow and reproducible local Bash script, validating actual npm resolution and installation before returning an artifact. Require a committed integrity-pinned lockfile in full CI.
+- Strengthen native 7-Zip testing with executable identity, correct-password listing, exact fatal-error checks, visible-header and truncated-archive negative controls, and an explicitly diagnostic native-only mode.
+- Retain verification evidence and bind the release review reference to the exact candidate commit. Preserve all mandatory gates and cryptographic/UI behaviour.
+- External downloads, native engine, full browser/scanner execution and owner approval remain outstanding in the authoring environment.
+
+## [2.2.0-rc.1] — 2026-11-25 (candidate, not released)
+
+- Add native Linux/macOS 7-Zip and browser WASM bidirectional interoperability harness; preserve PBKDF2-SHA512/AES-GCM and legacy decryption.
+- Pin sevenzip-wasm 26.6.0 (7-Zip 26.06); verify cached runtime against original pinned ZIP.
+- Correct baseline HTML/ESLint findings, add operation cancellation, resource/metadata controls and non-overwrite directory saving.
+- Add System/Light/Dark preferences, contrast fixes, dynamic footer and local favicon; add independent crypto and UI tests.
+- Add security gates, single-artifact CI promotion and explicit owner-reviewed deployment. Lockfile generation and full CI/runtime verification remain release blockers.
+
 ## 2.1.1 - 2026-09-09
 
 ### Changed

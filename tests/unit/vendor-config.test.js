@@ -3,14 +3,14 @@ import { describe, it } from "node:test";
 import { SEVENZIP_VENDOR } from "../../scripts/sevenzip-vendor-config.mjs";
 
 describe("sevenzip-wasm vendor pin", () => {
-  it("pins the current 7-Zip 26.03 browser build", () => {
+  it("pins the current 7-Zip 26.06 browser build", () => {
     assert.equal(SEVENZIP_VENDOR.name, "sevenzip-wasm");
-    assert.equal(SEVENZIP_VENDOR.release, "26.3.0");
-    assert.equal(SEVENZIP_VENDOR.sevenZipVersion, "26.03");
-    assert.equal(SEVENZIP_VENDOR.sourceCommit, "b4406198ad5399dc277cc13ab288f54b676aa411");
+    assert.equal(SEVENZIP_VENDOR.release, "26.6.0");
+    assert.equal(SEVENZIP_VENDOR.sevenZipVersion, "26.06");
+    assert.equal(SEVENZIP_VENDOR.sourceCommit, "eba9a8492d7b5c4c673b69314a6b75eb81f75742");
     assert.equal(
       SEVENZIP_VENDOR.assetSha256,
-      "db58a8176f63be60c1701dd260b797ff01132f39e54bf40d7c4b205b5b030243",
+      "8c4dc98f02d35b6163416ba6a7f330ef321df78f8eebb81943c2af32e04bfdd6",
     );
   });
 

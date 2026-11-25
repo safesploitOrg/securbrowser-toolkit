@@ -24,15 +24,7 @@ After this build step, the deployed `public/` directory is self-contained: the a
 
 ## GitHub Pages
 
-`.github/workflows/deploy-pages.yml`:
-
-1. checks out the exact revision that passed CI;
-2. uses the exact Node.js 26.8.1 Current runtime;
-3. runs `npm run build:public` to prepare/verify the pinned sevenzip-wasm runtime;
-4. uploads `public/` as the Pages artifact;
-5. deploys it using GitHub's Pages OIDC flow.
-
-The workflow is guarded so a successful pull-request workflow cannot trigger production deployment.
+CI builds and hashes the exact public artifact once. Browser and native interoperability jobs validate it, then the reusable Pages workflow can promote it only when all mandatory quality and security jobs pass and an owner-reviewed manual main release is requested. Configure the production environment protection and release record as described in `operations.md`.
 
 ## MIME types
 
@@ -76,9 +68,8 @@ server {
         try_files $uri $uri/ =404;
     }
 
-    types {
-        application/wasm wasm;
-    }
+    # Use the normal nginx MIME table (including application/wasm for wasm).
+    include /etc/nginx/mime.types;
 
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "no-referrer" always;
