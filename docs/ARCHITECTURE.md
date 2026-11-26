@@ -115,6 +115,10 @@ Blob URLs / optional explicit directory save
 
 Secure File has no third-party runtime cryptographic library.
 
-Secure Archive relies on pinned sevenzip-wasm 26.3.0 / 7-Zip 26.03. The build downloads one fixed immutable GitHub release archive, verifies its SHA-256, extracts the runtime into `public/vendor/sevenzip-wasm/`, and deploys those files from the same origin. The running application never loads archive code from a public CDN.
+Secure Archive relies on pinned sevenzip-wasm 26.6.0 / 7-Zip 26.06. The build downloads one fixed immutable GitHub release archive, verifies its SHA-256, extracts the runtime into `public/vendor/sevenzip-wasm/`, and deploys those files from the same origin. The running application never loads archive code from a public CDN.
 
 npm production `dependencies` remains empty; npm packages in this repository are development tooling only.
+
+## Candidate state and release boundaries
+
+`operation-state.js` enforces one active operation and invalidates late results. `preferences.js` and `appearance.js` own presentation-only state. `archive-policy.js` contains the shared worker listing policy; `save-files.js` creates a new directory and refuses observed collisions. The original vendor ZIP is cached outside `/public` and re-verified against the committed digest when checking the extracted runtime. CI promotes the exact tested artifact after all mandatory gates. See `operations.md`.

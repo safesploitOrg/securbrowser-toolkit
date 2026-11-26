@@ -13,6 +13,7 @@
       content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'"
     />
     <title>SecurBrowser Toolkit — Private Browser Encryption</title>
+    <link rel="icon" href="assets/images/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="assets/css/app.css" />
   </head>
   <body>
@@ -28,24 +29,21 @@
           </span>
         </a>
         <div class="header-actions">
-          <span class="privacy-badge" title="Files are processed in this browser">
-            Local-only
-          </span>
-          <button class="button button--quiet" id="reset-app" type="button">Reset</button>
-          <a
-            class="button button--quiet"
-            href="https://github.com/safesploitOrg/securbrowser-toolkit/"
-            rel="noopener noreferrer"
-          >
-            GitHub ↗
-          </a>
+          <button class="button button--quiet" id="reset-app" type="button">Reset / cancel</button>
+          <div class="appearance-control">
+            <label for="appearance">Appearance</label>
+            <select id="appearance" class="appearance-select">
+              <option value="system">System</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
         </div>
       </div>
     </header>
 
     <main id="app" class="page-shell">
       <section class="intro" aria-labelledby="page-title">
-        <p class="eyebrow">Private by design</p>
         <h1 id="page-title">Protect files without uploading them.</h1>
         <p>
           Encrypt a file with authenticated browser-native cryptography, or create a standard
@@ -65,7 +63,6 @@
             aria-controls="tool-file"
             aria-selected="true"
           >
-            <span class="tool-family-tab__icon" aria-hidden="true">🔐</span>
             <span>
               <strong>Secure File</strong>
               <small>Authenticated Web Crypto format</small>
@@ -80,7 +77,6 @@
             aria-selected="false"
             tabindex="-1"
           >
-            <span class="tool-family-tab__icon" aria-hidden="true">📦</span>
             <span>
               <strong>Secure Archive</strong>
               <small>Interoperable encrypted 7z</small>
@@ -98,7 +94,7 @@
               aria-controls="panel-encrypt"
               aria-selected="true"
             >
-              <span aria-hidden="true">🔒</span> Encrypt
+              Encrypt
             </button>
             <button
               id="tab-decrypt"
@@ -109,7 +105,7 @@
               aria-selected="false"
               tabindex="-1"
             >
-              <span aria-hidden="true">🔓</span> Decrypt
+              Decrypt
             </button>
           </div>
 
@@ -122,7 +118,7 @@
             <div class="panel-heading">
               <div>
                 <h2>Encrypt a file</h2>
-                <p>Create an authenticated <code>.enc</code> file using the SecurBrowser v2 format.</p>
+                <p>Create an authenticated <code>.enc</code> file using the SecurBrowser v2 format. Open it with SecurBrowser.</p>
               </div>
               <span class="format-badge">AES-256-GCM</span>
             </div>
@@ -143,7 +139,7 @@
                   <span class="file-meta__size" id="encrypt-file-size"></span>
                 </div>
                 <p id="encrypt-large-warning" class="inline-warning" hidden>
-                  Large file: SecurBrowser currently processes the whole file in browser memory.
+                  Large file: SecurBrowser processes the whole file in memory. Maximum input: 512 MiB.
                 </p>
               </div>
 
@@ -192,7 +188,7 @@
               </div>
 
               <p id="passphrase-match" class="field-help" data-state="neutral">
-                Use at least 8 characters; a longer passphrase is recommended.
+                Use a long, unique passphrase (minimum 8 characters).
               </p>
 
               <div class="action-row">
@@ -239,7 +235,7 @@
                   <span class="file-meta__size" id="decrypt-file-size"></span>
                 </div>
                 <p id="decrypt-large-warning" class="inline-warning" hidden>
-                  Large file: SecurBrowser currently processes the whole file in browser memory.
+                  Large file: SecurBrowser processes the whole file in memory. Maximum input: 512 MiB.
                 </p>
               </div>
 
@@ -282,7 +278,7 @@
               aria-controls="panel-archive-create"
               aria-selected="true"
             >
-              <span aria-hidden="true">📦</span> Create 7z
+              Create 7z
             </button>
             <button
               id="tab-archive-extract"
@@ -293,7 +289,7 @@
               aria-selected="false"
               tabindex="-1"
             >
-              <span aria-hidden="true">📂</span> Extract 7z
+              Extract 7z
             </button>
           </div>
 
@@ -418,7 +414,7 @@
                 Use at least 12 characters. Filenames and file contents are encrypted.
               </p>
 
-              <div class="archive-security-note" aria-label="Archive security settings">
+              <div class="archive-security-note">
                 <span aria-hidden="true">🛡️</span>
                 <div>
                   <strong>Filename encryption is always enabled</strong>
@@ -519,7 +515,7 @@
 
               <p class="field-help">
                 Safety guard: at most 2,000 entries, a 1 GiB archive input and 1 GiB declared
-                uncompressed data.
+                uncompressed data. Saving creates a new subfolder; existing files are not intentionally overwritten.
               </p>
 
               <div class="action-row">
@@ -537,7 +533,7 @@
                   type="button"
                   hidden
                 >
-                  Save all to folder
+                  Save to new folder
                 </button>
               </div>
 
@@ -612,7 +608,7 @@
               </div>
               <div>
                 <dt>Runtime</dt>
-                <dd>Pinned sevenzip-wasm / 7-Zip 26.03</dd>
+                <dd>Pinned sevenzip-wasm / 7-Zip 26.06</dd>
               </div>
             </dl>
           </article>
@@ -622,7 +618,7 @@
           <summary>How local processing works</summary>
           <div class="details-content">
             <p>
-              Secure File uses the browser's Web Crypto API. Secure Archive runs pinned sevenzip-wasm/7-Zip 26.03 WebAssembly
+              Secure File uses the browser's Web Crypto API. Secure Archive runs pinned sevenzip-wasm/7-Zip 26.06 WebAssembly
               inside a dedicated worker. The WASM assets are served from the same origin;
               no CDN is contacted at runtime. SecurBrowser has no upload endpoint and does not transmit
               selected files or passphrases.
@@ -638,9 +634,10 @@
     </main>
 
     <footer class="site-footer">
-      <p>SecurBrowser Toolkit · Browser-side encryption · Review the source before relying on it.</p>
+      <p>© <span id="footer-year">2026</span> safesploitOrg · <a href="https://github.com/safesploitOrg/securbrowser-toolkit/" rel="noopener noreferrer">GitHub</a></p>
     </footer>
 
+    <script type="module" src="assets/js/appearance.js"></script>
     <script type="module" src="assets/js/app.js"></script>
   </body>
 </html>

@@ -108,7 +108,7 @@ test("creates and extracts an encrypted 7z archive", async ({ page }) => {
   await page.getByRole("button", { name: "Decrypt and extract" }).click();
 
   await expect(page.locator("#archive-extract-status")).toContainText(
-    "Archive decrypted and extracted successfully",
+    "Archive extracted successfully",
   );
   await expect(page.locator("#archive-extract-list li")).toHaveCount(2);
   await expect(page.locator("#archive-extract-list")).toContainText("notes.txt");

@@ -34,7 +34,8 @@ function securityHeaders() {
 }
 
 function resolveRequestPath(urlPath) {
-  const decoded = decodeURIComponent(urlPath.split("?")[0]);
+  let decoded;
+  try { decoded = decodeURIComponent(urlPath.split("?")[0]); } catch { return null; }
   const relative = decoded === "/" ? "index.html" : decoded.replace(/^\/+/, "");
   const safeRelative = normalize(relative).replace(/^(\.\.(\/|\\|$))+/, "");
   const absolute = resolve(join(PUBLIC_DIR, safeRelative));

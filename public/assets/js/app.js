@@ -1,3 +1,5 @@
+import { createOperationState } from "./operation-state.js";
+import { saveToNewDirectory } from "./save-files.js";
 import {
   archiveRuntimeAvailable,
   createEncryptedArchive,
@@ -20,6 +22,8 @@ import {
   encryptedFilename,
   formatFileSize,
   LARGE_FILE_WARNING_BYTES,
+  MAX_SECURE_FILE_BYTES,
+  MAX_PLAINTEXT_BYTES,
   readFileBytes,
   revokeDownloadUrl,
 } from "./file-utils.js";
@@ -48,6 +52,46 @@ import {
 } from "./ui.js";
 
 const ui = getUiElements();
+const operations = createOperationState();
+const lockedControls = new Map();
+let saving = false;
+
+function canOperate() { return !operations.current() && !saving; }
+
+function lockControls() {
+  for (const control of document.querySelectorAll("#app input, #app select, #app button")) {
+    lockedControls.set(control, control.disabled);
+    control.disabled = true;
+  }
+}
+
+function unlockControls() {
+  for (const [control, disabled] of lockedControls) control.disabled = disabled;
+  lockedControls.clear();
+}
+
+function refreshValidation() {
+  updateEncryptValidation();
+  updateDecryptValidation();
+  updateArchiveCreateValidation();
+  updateArchiveExtractValidation();
+}
+
+function beginOperation(mode) {
+  if (!canOperate()) return null;
+  const operation = operations.begin(mode);
+  lockControls();
+  setBusy(mode, true);
+  return operation;
+}
+
+function endOperation(operation) {
+  if (!operations.finish(operation)) return;
+  setBusy(operation.mode, false);
+  unlockControls();
+  refreshValidation();
+}
+
 const state = {
   toolFamily: "file",
   fileMode: "encrypt",
@@ -74,13 +118,13 @@ function updateEncryptValidation() {
   const empty = passphrase.length === 0 && confirmation.length === 0;
 
   setPassphraseMatch({ valid: validPassphrase, empty });
-  setSubmitEnabled("encrypt", Boolean(state.encryptFile && validPassphrase));
+  setSubmitEnabled("encrypt", Boolean(canOperate() && isWebCryptoAvailable() && state.encryptFile && state.encryptFile.size <= MAX_PLAINTEXT_BYTES && validPassphrase));
 }
 
 function updateDecryptValidation() {
   setSubmitEnabled(
     "decrypt",
-    Boolean(state.decryptFile && ui.decryptPassphrase.value.length > 0),
+    Boolean(canOperate() && isWebCryptoAvailable() && state.decryptFile && state.decryptFile.size <= MAX_SECURE_FILE_BYTES && ui.decryptPassphrase.value.length > 0),
   );
 }
 
@@ -96,7 +140,7 @@ function updateArchiveCreateValidation() {
   setArchivePassphraseMatch({ valid: validPassphrase, empty });
   setSubmitEnabled(
     "archive-create",
-    Boolean(state.archiveEntries.length > 0 && validPassphrase && withinLimit),
+    Boolean(canOperate() && archiveRuntimeAvailable() && state.archiveEntries.length > 0 && validPassphrase && withinLimit && !passphrase.includes("\0")),
   );
 }
 
@@ -104,9 +148,9 @@ function updateArchiveExtractValidation() {
   setSubmitEnabled(
     "archive-extract",
     Boolean(
-      state.archiveExtractFile &&
+      canOperate() && archiveRuntimeAvailable() && state.archiveExtractFile &&
         state.archiveExtractFile.size <= MAX_ARCHIVE_FILE_BYTES &&
-        ui.archiveExtractPassphrase.value.length > 0,
+        ui.archiveExtractPassphrase.value.length > 0 && !ui.archiveExtractPassphrase.value.includes("\0"),
     ),
   );
 }
@@ -133,7 +177,7 @@ function releaseExtractedDownloads() {
 }
 
 function selectFile(mode, file) {
-  if (!file) {
+  if (!canOperate() || !file) {
     return;
   }
 
@@ -148,6 +192,8 @@ function selectFile(mode, file) {
     file.size >= LARGE_FILE_WARNING_BYTES,
   );
 
+  if (file.size > (mode === "encrypt" ? MAX_PLAINTEXT_BYTES : MAX_SECURE_FILE_BYTES)) setStatus(mode, "File exceeds the 512 MiB input safety limit.", "error");
+
   if (mode === "encrypt") {
     updateEncryptValidation();
   } else {
@@ -156,7 +202,7 @@ function selectFile(mode, file) {
 }
 
 function selectArchiveExtractFile(file) {
-  if (!file) {
+  if (!canOperate() || !file) {
     return;
   }
 
@@ -180,6 +226,7 @@ function selectArchiveExtractFile(file) {
 }
 
 function appendArchiveSelection(files) {
+  if (!canOperate()) return;
   try {
     state.archiveEntries = appendArchiveFiles(state.archiveEntries, files);
   } catch (error) {
@@ -211,6 +258,7 @@ function appendArchiveSelection(files) {
 }
 
 function clearArchiveFiles() {
+  if (!canOperate()) return;
   state.archiveEntries = [];
   releaseSingleDownload("archive-create");
   clearArchiveSelection();
@@ -321,6 +369,7 @@ function resetPasswordToggles() {
 
 async function handleEncrypt(event) {
   event.preventDefault();
+  if (!canOperate()) return;
   updateEncryptValidation();
 
   if (!state.encryptFile || ui.encryptSubmit.disabled) {
@@ -328,13 +377,18 @@ async function handleEncrypt(event) {
   }
 
   releaseSingleDownload("encrypt");
-  setBusy("encrypt", true);
+  const operation = beginOperation("encrypt");
+  if (!operation) return;
   setStatus("encrypt", "Encrypting locally in your browser…", "info");
 
+  const file = state.encryptFile;
+  const passphrase = ui.encryptPassphrase.value;
   try {
-    const plaintext = await readFileBytes(state.encryptFile);
-    const encrypted = await encryptFileBytes(plaintext, ui.encryptPassphrase.value);
-    const filename = encryptedFilename(state.encryptFile.name);
+    const plaintext = await readFileBytes(file);
+    if (!operations.isCurrent(operation)) return;
+    const encrypted = await encryptFileBytes(plaintext, passphrase);
+    if (!operations.isCurrent(operation)) return;
+    const filename = encryptedFilename(file.name);
     const url = createDownloadUrl(encrypted);
     state.encryptDownloadUrl = url;
 
@@ -348,17 +402,17 @@ async function handleEncrypt(event) {
       "File encrypted with PBKDF2-HMAC-SHA512 and authenticated AES-256-GCM.",
       "success",
     );
-  } catch (error) {
-    console.error(error);
+  } catch {
+    if (!operations.isCurrent(operation)) return;
     setStatus("encrypt", "Encryption failed. No output file was created.", "error");
   } finally {
-    setBusy("encrypt", false);
-    updateEncryptValidation();
+    endOperation(operation);
   }
 }
 
 async function handleDecrypt(event) {
   event.preventDefault();
+  if (!canOperate()) return;
   updateDecryptValidation();
 
   if (!state.decryptFile || ui.decryptSubmit.disabled) {
@@ -366,13 +420,18 @@ async function handleDecrypt(event) {
   }
 
   releaseSingleDownload("decrypt");
-  setBusy("decrypt", true);
+  const operation = beginOperation("decrypt");
+  if (!operation) return;
   setStatus("decrypt", "Decrypting locally in your browser…", "info");
 
+  const file = state.decryptFile;
+  const passphrase = ui.decryptPassphrase.value;
   try {
-    const encrypted = await readFileBytes(state.decryptFile);
-    const result = await decryptFileBytes(encrypted, ui.decryptPassphrase.value);
-    const filename = decryptedFilename(state.decryptFile.name);
+    const encrypted = await readFileBytes(file);
+    if (!operations.isCurrent(operation)) return;
+    const result = await decryptFileBytes(encrypted, passphrase);
+    if (!operations.isCurrent(operation)) return;
+    const filename = decryptedFilename(file.name);
     const url = createDownloadUrl(result.plaintext);
     state.decryptDownloadUrl = url;
 
@@ -396,17 +455,16 @@ async function handleDecrypt(event) {
       );
     }
   } catch (error) {
-    console.error(error);
+    if (!operations.isCurrent(operation)) return;
     setStatus("decrypt", error.message || "Decryption failed.", "error");
   } finally {
-    setBusy("decrypt", false);
-    updateDecryptValidation();
+    endOperation(operation);
   }
 }
 
-function archiveProgressHandler(mode) {
+function archiveProgressHandler(mode, operation) {
   return ({ message }) => {
-    if (message) {
+    if (message && operations.isCurrent(operation)) {
       setStatus(mode, message, "info");
     }
   };
@@ -414,6 +472,7 @@ function archiveProgressHandler(mode) {
 
 async function handleArchiveCreate(event) {
   event.preventDefault();
+  if (!canOperate()) return;
   updateArchiveCreateValidation();
 
   if (ui.archiveCreateSubmit.disabled || state.archiveEntries.length === 0) {
@@ -421,17 +480,20 @@ async function handleArchiveCreate(event) {
   }
 
   releaseSingleDownload("archive-create");
-  setBusy("archive-create", true);
+  const operation = beginOperation("archive-create");
+  if (!operation) return;
   setStatus("archive-create", "Starting the local 7-Zip worker…", "info");
 
+  const filename = archiveOutputFilename(ui.archiveName.value);
   try {
     const result = await createEncryptedArchive({
-      entries: state.archiveEntries,
+      entries: [...state.archiveEntries],
       passphrase: ui.archiveCreatePassphrase.value,
       compressionLevel: Number(ui.archiveCompression.value),
-      onProgress: archiveProgressHandler("archive-create"),
+      onProgress: archiveProgressHandler("archive-create", operation),
+      signal: operation.controller.signal,
     });
-    const filename = archiveOutputFilename(ui.archiveName.value);
+    if (!operations.isCurrent(operation)) return;
     const url = createDownloadUrl(result.archive, "application/x-7z-compressed");
     state.archiveDownloadUrl = url;
 
@@ -446,16 +508,16 @@ async function handleArchiveCreate(event) {
       "success",
     );
   } catch (error) {
-    console.error(error);
+    if (!operations.isCurrent(operation)) return;
     setStatus("archive-create", error.message || "Archive creation failed.", "error");
   } finally {
-    setBusy("archive-create", false);
-    updateArchiveCreateValidation();
+    endOperation(operation);
   }
 }
 
 async function handleArchiveExtract(event) {
   event.preventDefault();
+  if (!canOperate()) return;
   updateArchiveExtractValidation();
 
   if (!state.archiveExtractFile || ui.archiveExtractSubmit.disabled) {
@@ -463,20 +525,26 @@ async function handleArchiveExtract(event) {
   }
 
   releaseExtractedDownloads();
-  setBusy("archive-extract", true);
+  const operation = beginOperation("archive-extract");
+  if (!operation) return;
   setStatus("archive-extract", "Checking the selected 7z archive…", "info");
 
+  const file = state.archiveExtractFile;
+  const passphrase = ui.archiveExtractPassphrase.value;
   try {
-    if (!(await fileLooksLikeSevenZip(state.archiveExtractFile))) {
+    if (!(await fileLooksLikeSevenZip(file))) {
       throw new Error("The selected file does not contain a valid 7z signature.");
     }
 
+    if (!operations.isCurrent(operation)) return;
     const result = await extractEncryptedArchive({
-      file: state.archiveExtractFile,
-      passphrase: ui.archiveExtractPassphrase.value,
-      onProgress: archiveProgressHandler("archive-extract"),
+      file,
+      passphrase,
+      onProgress: archiveProgressHandler("archive-extract", operation),
+      signal: operation.controller.signal,
     });
 
+    if (!operations.isCurrent(operation)) return;
     state.extractedFiles = result.files.map((file) => ({
       ...file,
       path: safeExtractedPath(file.path),
@@ -498,54 +566,40 @@ async function handleArchiveExtract(event) {
       "archive-extract",
       skipped > 0
         ? `Archive extracted. ${skipped.toLocaleString()} symbolic-link or unsupported entries were skipped.`
-        : "Archive decrypted and extracted successfully.",
+        : "Archive extracted successfully.",
       skipped > 0 ? "warning" : "success",
     );
   } catch (error) {
-    console.error(error);
+    if (!operations.isCurrent(operation)) return;
     releaseExtractedDownloads();
     setStatus("archive-extract", error.message || "Archive extraction failed.", "error");
   } finally {
-    setBusy("archive-extract", false);
-    updateArchiveExtractValidation();
+    endOperation(operation);
   }
 }
 
 async function saveExtractedFilesToDirectory() {
-  if (typeof window.showDirectoryPicker !== "function" || state.extractedFiles.length === 0) {
-    return;
-  }
-
+  if (!canOperate() || typeof window.showDirectoryPicker !== "function" || !state.extractedFiles.length) return;
+  const files = [...state.extractedFiles];
+  let saved = 0;
+  saving = true;
+  lockControls();
+  ui.resetButton.disabled = true;
   try {
     const root = await window.showDirectoryPicker({ mode: "readwrite" });
-    setStatus("archive-extract", "Saving extracted files to the selected folder…", "info");
-
-    for (const file of state.extractedFiles) {
-      const parts = safeExtractedPath(file.path).split("/");
-      const filename = parts.pop();
-      let directory = root;
-
-      for (const part of parts) {
-        directory = await directory.getDirectoryHandle(part, { create: true });
-      }
-
-      const fileHandle = await directory.getFileHandle(filename, { create: true });
-      const writable = await fileHandle.createWritable();
-      await writable.write(file.bytes);
-      await writable.close();
-    }
-
-    setStatus(
-      "archive-extract",
-      `${state.extractedFiles.length.toLocaleString()} extracted files saved to the selected folder.`,
-      "success",
-    );
+    const folder = `securbrowser-${crypto.randomUUID()}`;
+    setStatus("archive-extract", "Saving to a new subfolder. Keep this page open.", "info");
+    await saveToNewDirectory(root, files, folder, () => { saved += 1; });
+    setStatus("archive-extract", `${saved} files saved in ${folder}.`, "success");
   } catch (error) {
-    if (error?.name === "AbortError") {
-      return;
+    if (error?.name !== "AbortError" || saved > 0) {
+      setStatus("archive-extract", `Save stopped after ${saved} of ${files.length} files. A partial folder may remain; existing files were not intentionally overwritten.`, "error");
     }
-    console.error(error);
-    setStatus("archive-extract", "Unable to save all extracted files to that folder.", "error");
+  } finally {
+    saving = false;
+    unlockControls();
+    ui.resetButton.disabled = false;
+    refreshValidation();
   }
 }
 
@@ -571,6 +625,12 @@ function setUpTabPair(first, second, activateFirst, activateSecond) {
 }
 
 function resetApp() {
+  if (saving) return;
+  const previous = operations.cancel();
+  if (previous) {
+    setBusy(previous.mode, false);
+    unlockControls();
+  }
   releaseSingleDownload("encrypt");
   releaseSingleDownload("decrypt");
   releaseSingleDownload("archive-create");
@@ -659,8 +719,9 @@ function initialise() {
     });
   }
   for (const input of [ui.archiveName, ui.archiveCompression]) {
-    input.addEventListener("input", () => releaseSingleDownload("archive-create"));
-    input.addEventListener("change", () => releaseSingleDownload("archive-create"));
+    const invalidate = () => { releaseSingleDownload("archive-create"); clearStatus("archive-create"); };
+    input.addEventListener("input", invalidate);
+    input.addEventListener("change", invalidate);
   }
   ui.archiveExtractPassphrase.addEventListener("input", () => {
     releaseExtractedDownloads();

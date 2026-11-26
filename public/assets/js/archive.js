@@ -9,6 +9,7 @@ import {
 } from "./archive-utils.js";
 
 const WORKER_URL = new URL("./archive-worker.js", import.meta.url);
+const WORKER_TIMEOUT_MS = 5 * 60 * 1000;
 const ALLOWED_COMPRESSION_LEVELS = new Set([0, 3, 5, 9]);
 
 export class ArchiveError extends Error {
@@ -23,7 +24,8 @@ export function archiveRuntimeAvailable() {
   return typeof Worker === "function" && typeof WebAssembly === "object";
 }
 
-function runWorker(operation, payload, onProgress) {
+function runWorker(operation, payload, onProgress, signal) {
+  if (signal?.aborted) return Promise.reject(new ArchiveError("Operation cancelled.", "ARCHIVE_CANCELLED"));
   if (!archiveRuntimeAvailable()) {
     return Promise.reject(
       new ArchiveError(
@@ -42,10 +44,15 @@ function runWorker(operation, payload, onProgress) {
         return;
       }
       settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
       worker.terminate();
       callback(value);
     };
 
+    const abort = () => finish(reject, new ArchiveError("Operation cancelled.", "ARCHIVE_CANCELLED"));
+    const timer = setTimeout(() => finish(reject, new ArchiveError("Archive processing exceeded five minutes.", "ARCHIVE_TIMEOUT")), WORKER_TIMEOUT_MS);
+    signal?.addEventListener("abort", abort, { once: true });
     worker.addEventListener("message", (event) => {
       const message = event.data;
       if (!message || typeof message !== "object") {
@@ -73,17 +80,17 @@ function runWorker(operation, payload, onProgress) {
       }
     });
 
-    worker.addEventListener("error", (event) => {
+    worker.addEventListener("error", () => {
       finish(
         reject,
         new ArchiveError(
-          event.message || "The 7z worker could not be started.",
+          "The 7z worker could not be started.",
           "ARCHIVE_WORKER_FAILED",
         ),
       );
     });
 
-    worker.postMessage({ operation, payload });
+    try { worker.postMessage({ operation, payload }); } catch (error) { finish(reject, error); }
   });
 }
 
@@ -92,6 +99,7 @@ export async function createEncryptedArchive({
   passphrase,
   compressionLevel = 5,
   onProgress,
+  signal,
 }) {
   if (!Array.isArray(entries) || entries.length === 0) {
     throw new ArchiveError("Select at least one file for the archive.", "NO_ARCHIVE_INPUT");
@@ -136,6 +144,7 @@ export async function createEncryptedArchive({
       compressionLevel: numericLevel,
     },
     onProgress,
+    signal,
   );
 
   return {
@@ -146,7 +155,7 @@ export async function createEncryptedArchive({
   };
 }
 
-export async function extractEncryptedArchive({ file, passphrase, onProgress }) {
+export async function extractEncryptedArchive({ file, passphrase, onProgress, signal }) {
   if (!(file instanceof File)) {
     throw new ArchiveError("Choose a 7z archive to extract.", "NO_ARCHIVE_FILE");
   }
@@ -173,6 +182,7 @@ export async function extractEncryptedArchive({ file, passphrase, onProgress }) 
       },
     },
     onProgress,
+    signal,
   );
 
   return {

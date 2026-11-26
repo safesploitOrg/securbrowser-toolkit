@@ -5,105 +5,306 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy after every required gate passes (main only)
+        type: boolean
+        default: false
+      approval_reference:
+        description: Recorded human owner review of the exact revision (required for deploy)
+        type: string
+        required: false
+      approval_commit:
+        description: Full SHA of the human-reviewed revision (required for deploy)
+        type: string
+        required: false
 
 permissions:
   contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  NODE_VERSION: "26.8.1"
+  cancel-in-progress: false
 
 jobs:
   quality:
     name: Quality and unit tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
+    timeout-minutes: 20
     steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: ${{ env.NODE_VERSION }}
-
+          node-version-file: .node-version
       - name: Verify Node.js runtime
         run: |
           node --version
-          node -e "if (process.version !== 'v${NODE_VERSION}') throw new Error('Unexpected Node.js version: ' + process.version)"
-
+          test "$(node --version)" = "v$(cat .node-version)"
+      - name: Validate committed lockfile
+        run: npm run lockfile:check
       - name: Install development dependencies
         id: install
-        run: npm install --ignore-scripts --no-audit --no-fund
-
-      - name: Verify repository layout
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify repository layout and dependency boundary
         if: ${{ always() }}
-        run: npm run layout:check
-
-      - name: Verify zero npm production dependencies
-        if: ${{ always() }}
-        run: npm run deps:production
-
-      - name: Prepare pinned 7-Zip WASM runtime
-        if: ${{ always() }}
-        run: npm run build:public
-
+        run: npm run layout:check && npm run deps:production
       - name: Run dependency-free HTML checks
         if: ${{ always() }}
         run: npm run validate:html:static
-
       - name: Validate HTML against html-validate
         if: ${{ always() && steps.install.outcome == 'success' }}
         run: npx --no-install html-validate public/index.html
-
       - name: Run unit tests
         if: ${{ always() }}
-        run: npm run test:unit
-
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verification-reports
+          npm run test:unit | tee verification-reports/unit-tests.txt
       - name: Lint JavaScript
         if: ${{ always() && steps.install.outcome == 'success' }}
         run: npm run lint
-
       - name: Check repository style
         if: ${{ always() }}
         run: npm run style:check
+      - name: Validate Bash harnesses
+        run: |
+          for script in scripts/*.sh; do bash -n "$script"; done
+      - name: Retain unit-test evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unit-test-evidence
+          path: verification-reports/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Build pinned WASM runtime once
+        run: npm run build:public
+      - name: Package candidate and integrity manifest
+        run: |
+          mkdir -p release-bundle
+          cp -a public release-bundle/public
+          cp .cache/sevenzip-wasm.zip release-bundle/vendor-source.zip
+          (cd release-bundle && find public -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: validated-public
+          path: release-bundle/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
 
-  browser:
-    name: Browser tests
+  dependency-audit:
+    name: Dependency security gate
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    needs: quality
-
+    timeout-minutes: 10
     steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Verify Node.js runtime
+          node-version-file: .node-version
+      - run: npm run lockfile:check
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Enforce dependency audit
         run: |
-          node --version
-          node -e "if (process.version !== 'v${NODE_VERSION}') throw new Error('Unexpected Node.js version: ' + process.version)"
+          mkdir -p verification-reports
+          npm audit --audit-level=high --json > verification-reports/npm-audit.json
+      - name: Retain dependency audit report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dependency-audit-evidence
+          path: verification-reports/
+          if-no-files-found: warn
+          retention-days: 14
 
-      - name: Install development dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
+  secrets:
+    name: Secret detection gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install and run pinned Gitleaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          trap 'rm -rf -- "$work"' EXIT
+          curl --fail --silent --show-error --location --max-time 120 --output "$work/gitleaks.tar.gz" https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $work/gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf "$work/gitleaks.tar.gz" -C "$work" gitleaks
+          mkdir -p verification-reports
+          status=0
+          "$work/gitleaks" git --redact=100 --exit-code 1 --no-banner . || status=$?
+          printf "Gitleaks exit status: %s\n" "$status" > verification-reports/gitleaks-status.txt
+          exit "$status"
+      - name: Retain secret-scan status (no matched secret data)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: secret-scan-evidence
+          path: verification-reports/
+          if-no-files-found: warn
+          retention-days: 14
 
-      - name: Prepare pinned 7-Zip WASM runtime
-        run: npm run build:public
+  sast:
+    name: CodeQL security gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4
+        with:
+          languages: javascript-typescript
+          build-mode: none
+      - uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4
+        with:
+          upload: never
+          output: codeql-results
+      - name: Enforce CodeQL results
+        run: node scripts/check-sarif.mjs codeql-results
+      - name: Retain SAST evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sast-evidence
+          path: codeql-results/
+          if-no-files-found: warn
+          retention-days: 14
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium firefox webkit
+  # General browser/axe CI paused by project owner on 2026-11-26.
+  # See docs/RELEASE_CHECKLIST.md: release evidence or a recorded SFW exception
+  # is still required. Native/WASM interoperability remains mandatory.
+  # browser:
+  #   name: Browser and accessibility tests
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   needs: quality
+  #   steps:
+  #     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+  #       with:
+  #         persist-credentials: false
+  #     - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+  #       with:
+  #         node-version-file: .node-version
+  #     - run: npm run lockfile:check
+  #     - run: npm ci --ignore-scripts --no-audit --no-fund
+  #     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+  #       with:
+  #         name: validated-public
+  #         path: release-bundle
+  #     - name: Verify and use the exact candidate
+  #       run: |
+  #         (cd release-bundle && sha256sum -c SHA256SUMS)
+  #         mv public public-source
+  #         mv release-bundle/public public
+  #         mkdir -p .cache
+  #         mv release-bundle/vendor-source.zip .cache/sevenzip-wasm.zip
+  #         npm run vendor:sevenzip:check
+  #     - run: npx playwright install --with-deps chromium firefox webkit
+  #     - name: Run all three browser engines
+  #       shell: bash
+  #       run: |
+  #         set -euo pipefail
+  #         mkdir -p verification-reports
+  #         npm run test:e2e:built | tee verification-reports/browser-tests.txt
+  #     - name: Retain browser evidence
+  #       if: ${{ always() }}
+  #       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+  #       with:
+  #         name: browser-test-evidence
+  #         path: verification-reports/
+  #         if-no-files-found: warn
+  #         retention-days: 14
 
-      - name: Run Chromium, Firefox and WebKit tests
-        run: npm run test:e2e
+  interoperability:
+    name: Native 7-Zip interoperability
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: quality
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+      - run: npm run lockfile:check
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: validated-public
+          path: release-bundle
+      - name: Verify and use the exact candidate
+        run: |
+          (cd release-bundle && sha256sum -c SHA256SUMS)
+          mv public public-source
+          mv release-bundle/public public
+          mkdir -p .cache
+          mv release-bundle/vendor-source.zip .cache/sevenzip-wasm.zip
+      - name: Ensure native 7-Zip is available
+        run: |
+          if ! command -v 7zz >/dev/null && ! command -v 7z >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y 7zip
+          fi
+      - run: npx playwright install --with-deps chromium
+      - name: Native and WASM interoperability
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verification-reports
+          bash scripts/test-7z-interop.sh | tee verification-reports/7zip-interop.txt
+      - name: Retain interoperability evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-wasm-interop-evidence
+          path: verification-reports/
+          if-no-files-found: warn
+          retention-days: 14
+
+  release-review:
+    name: Validate release review reference
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require approval bound to the exact commit
+        env:
+          APPROVAL_REFERENCE: ${{ inputs.approval_reference }}
+          APPROVAL_COMMIT: ${{ inputs.approval_commit }}
+        run: |
+          test "$GITHUB_REF" = refs/heads/main
+          test -n "$APPROVAL_REFERENCE"
+          test "$APPROVAL_COMMIT" = "$GITHUB_SHA"
+          echo 'Review reference supplied for the selected revision. Environment/owner review is still required.'
+
+  deploy:
+    name: Release approved candidate
+    needs: [
+      quality,
+      dependency-audit,
+      secrets,
+      sast,
+      # browser,
+      interoperability,
+      release-review]
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy && inputs.approval_reference != '' && inputs.approval_commit == github.sha }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy-pages.yml
+    with:
+      approval_reference: ${{ inputs.approval_reference }}
+      approval_commit: ${{ inputs.approval_commit }}

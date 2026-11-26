@@ -1,3 +1,5 @@
+self.importScripts(new URL("./archive-policy.js", self.location.href).href);
+const policy = globalThis.SbtArchivePolicy;
 const VENDOR_SCRIPT_URL = new URL("../../vendor/sevenzip-wasm/sevenzip-wasm.js", self.location.href);
 const VENDOR_WASM_URL = new URL("../../vendor/sevenzip-wasm/sevenzip-wasm.wasm", self.location.href);
 const SEVEN_ZIP_SIGNATURE = Uint8Array.from([0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c]);
@@ -53,10 +55,12 @@ async function createSevenZipRuntime(passphrase = "", maxCapturedLines = DEFAULT
   let exitCode = null;
   let abortReason = null;
   let outputOverflow = false;
+  let outputBytes = 0;
 
   const capture = (line) => {
-    if (output.length < maxCapturedLines) {
-      output.push(redact(line, passphrase));
+    outputBytes += String(line).length * 2;
+    if (output.length < maxCapturedLines && outputBytes <= 8 * 1024 * 1024) {
+      output.push(String(line));
     } else {
       outputOverflow = true;
     }
@@ -101,10 +105,7 @@ async function createSevenZipRuntime(passphrase = "", maxCapturedLines = DEFAULT
       }
 
       if (abortReason) {
-        throw new WorkerArchiveError(
-          `7-Zip aborted: ${abortReason}`,
-          "SEVEN_ZIP_COMMAND_FAILED",
-        );
+        throw new WorkerArchiveError("7-Zip aborted.", "SEVEN_ZIP_ABORTED");
       }
 
       if (exitCode === null && typeof returnValue === "number") {
@@ -143,35 +144,8 @@ function ensureDirectory(fs, path) {
 }
 
 function normaliseArchivePath(input) {
-  if (typeof input !== "string") {
-    throw new WorkerArchiveError("Invalid archive entry path.", "INVALID_ARCHIVE_PATH");
-  }
-
-  if (/^[\\/]/.test(input) || /^[a-zA-Z]:[\\/]/.test(input)) {
-    throw new WorkerArchiveError("The archive contains an absolute path.", "UNSAFE_ARCHIVE_PATH");
-  }
-
-  const cleaned = input.replaceAll("\\", "/");
-  const parts = [];
-
-  for (const part of cleaned.split("/")) {
-    if (!part || part === ".") {
-      continue;
-    }
-    if (part === ".." || part.includes("\0")) {
-      throw new WorkerArchiveError(
-        "The archive contains an unsafe path.",
-        "UNSAFE_ARCHIVE_PATH",
-      );
-    }
-    parts.push(part);
-  }
-
-  if (parts.length === 0 || /^[a-zA-Z]:/.test(parts.join("/"))) {
-    throw new WorkerArchiveError("The archive contains an unsafe path.", "UNSAFE_ARCHIVE_PATH");
-  }
-
-  return parts.join("/");
+  try { return policy.safePath(input); }
+  catch { throw new WorkerArchiveError("Unsafe archive entry path.", "UNSAFE_ARCHIVE_PATH"); }
 }
 
 function dirname(path) {
@@ -226,11 +200,20 @@ async function stageArchiveInputs(runtime, entries) {
   return { topLevel: [...topLevel].sort(), inputBytes };
 }
 
-async function verifyArchive(archiveBytes, passphrase) {
+async function verifyArchive(archiveBytes, passphrase, expectedEntries) {
   postProgress("verify", "Verifying the encrypted archive…", 80);
   const runtime = await createSevenZipRuntime(passphrase);
   runtime.module.FS.writeFile("/archive.7z", archiveBytes);
-  runtime.run(["t", "-y", "-bb0", "-bd", `-p${passphrase}`, "/archive.7z"]);
+  runtime.run(["t", "-t7z", "-y", "-bb0", "-bd", `-p${passphrase}`, "/archive.7z"]);
+
+  const listingRuntime = await createSevenZipRuntime(passphrase, MAX_LISTING_LINES);
+  listingRuntime.module.FS.writeFile("/archive.7z", archiveBytes);
+  listingRuntime.run(["l", "-t7z", "-slt", "-bb0", "-bd", `-p${passphrase}`, "/archive.7z"]);
+  const inspection = policy.parseTechnicalListing(listingRuntime.output, { maxEntries: 2000, maxBytes: 1024 * 1024 * 1024 });
+  const listed = new Map(inspection.entries.filter((entry) => !entry.folder).map((entry) => [entry.path, entry.size]));
+  if (listed.size !== expectedEntries.length || expectedEntries.some((entry) => listed.get(normaliseArchivePath(entry.path)) !== entry.file.size)) {
+    throw new WorkerArchiveError("Generated archive contents do not match the selected files.", "ARCHIVE_CONTENT_VERIFY_FAILED");
+  }
 
   postProgress("verify-headers", "Verifying that filenames require the correct passphrase…", 90);
   const wrongPassphrase = createWrongVerificationPassphrase();
@@ -240,6 +223,7 @@ async function verifyArchive(archiveBytes, passphrase) {
   try {
     wrongPasswordRuntime.run([
       "l",
+      "-t7z",
       "-slt",
       "-bb0",
       "-bd",
@@ -247,7 +231,8 @@ async function verifyArchive(archiveBytes, passphrase) {
       "/archive.7z",
     ]);
   } catch (error) {
-    if (error instanceof WorkerArchiveError && error.code === "SEVEN_ZIP_COMMAND_FAILED") {
+    if (error instanceof WorkerArchiveError && error.code === "SEVEN_ZIP_COMMAND_FAILED" &&
+        !wrongPasswordRuntime.output.some((line) => line.trim() === "----------")) {
       return true;
     }
     throw error;
@@ -278,16 +263,18 @@ async function createArchive(payload) {
     "-t7z",
     `-mx=${compressionLevel}`,
     "-mhe=on",
+    "-spd",
     `-p${passphrase}`,
     "-y",
     "-bb0",
     "-bd",
     "/out/archive.7z",
     "--",
-    ...topLevel,
+    ...topLevel.map((name) => `./${name}`),
   ]);
 
   const archive = runtime.module.FS.readFile("/out/archive.7z", { encoding: "binary" }).slice();
+  if (archive.byteLength > 1024 * 1024 * 1024) throw new WorkerArchiveError("Archive output exceeds the 1 GiB input limit.", "ARCHIVE_OUTPUT_LIMIT");
   if (!hasSevenZipSignature(archive)) {
     throw new WorkerArchiveError(
       "7-Zip did not produce a valid 7z archive.",
@@ -295,7 +282,7 @@ async function createArchive(payload) {
     );
   }
 
-  await verifyArchive(archive, passphrase);
+  await verifyArchive(archive, passphrase, entries);
   postProgress("done", "Archive created and verified.", 100);
 
   return {
@@ -306,79 +293,6 @@ async function createArchive(payload) {
   };
 }
 
-function parseTechnicalListing(lines, limits) {
-  const entries = [];
-  let inEntries = false;
-  let current = null;
-
-  const commit = () => {
-    if (!current?.path) {
-      current = null;
-      return;
-    }
-
-    const path = normaliseArchivePath(current.path);
-    const size = Number(current.size ?? 0);
-    if (!Number.isSafeInteger(size) || size < 0) {
-      throw new WorkerArchiveError(
-        "The archive reports an invalid extracted size.",
-        "INVALID_ARCHIVE_METADATA",
-      );
-    }
-
-    entries.push({ path, size, folder: current.folder === "+" });
-    current = null;
-  };
-
-  for (const rawLine of lines) {
-    const line = String(rawLine).trimEnd();
-    if (line.trim() === "----------") {
-      inEntries = true;
-      continue;
-    }
-    if (!inEntries) {
-      continue;
-    }
-
-    if (line.startsWith("Path = ")) {
-      commit();
-      current = { path: line.slice(7) };
-      continue;
-    }
-    if (!current) {
-      continue;
-    }
-    if (line.startsWith("Size = ")) {
-      current.size = line.slice(7);
-    } else if (line.startsWith("Folder = ")) {
-      current.folder = line.slice(9).trim();
-    }
-  }
-  commit();
-
-  if (entries.length > limits.maxEntries) {
-    throw new WorkerArchiveError(
-      `The archive contains more than ${limits.maxEntries.toLocaleString()} entries.`,
-      "ARCHIVE_ENTRY_LIMIT",
-    );
-  }
-
-  let totalBytes = 0;
-  for (const entry of entries) {
-    if (entry.folder) {
-      continue;
-    }
-    totalBytes += entry.size;
-    if (!Number.isSafeInteger(totalBytes) || totalBytes > limits.maxBytes) {
-      throw new WorkerArchiveError(
-        "The archive declares more than 1 GiB of extracted file data.",
-        "ARCHIVE_EXPANSION_LIMIT",
-      );
-    }
-  }
-
-  return { entries, totalBytes };
-}
 
 async function inspectArchive(archiveBytes, passphrase, limits) {
   postProgress("inspect", "Checking archive metadata and safety limits…", 15);
@@ -386,18 +300,23 @@ async function inspectArchive(archiveBytes, passphrase, limits) {
   runtime.module.FS.writeFile("/archive.7z", archiveBytes);
 
   try {
-    runtime.run(["l", "-slt", "-bb0", "-bd", `-p${passphrase}`, "/archive.7z"]);
+    runtime.run(["l", "-t7z", "-slt", "-bb0", "-bd", `-p${passphrase}`, "/archive.7z"]);
   } catch (error) {
+    if (error?.code === "ARCHIVE_METADATA_LIMIT") throw error;
     throw new WorkerArchiveError(
       "Unable to open the encrypted archive. The passphrase may be incorrect or the archive may be damaged.",
       "ARCHIVE_OPEN_FAILED",
     );
   }
 
-  return parseTechnicalListing(runtime.output, limits);
+  try { return policy.parseTechnicalListing(runtime.output, limits); }
+  catch (error) { throw new WorkerArchiveError(error.message, error.code); }
 }
 
-function collectExtractedFiles(fs, root) {
+function collectExtractedFiles(fs, root, limits, inspection) {
+  let totalBytes = 0;
+  let visited = 0;
+  const declared = new Map(inspection.entries.filter((entry) => !entry.folder).map((entry) => [entry.path, entry.size]));
   const files = [];
   const skippedEntries = [];
 
@@ -409,6 +328,8 @@ function collectExtractedFiles(fs, root) {
 
       const absolutePath = `${directory}/${name}`.replaceAll("//", "/");
       const relativePath = relativeDirectory ? `${relativeDirectory}/${name}` : name;
+      if (++visited > limits.maxEntries * 2) throw new WorkerArchiveError("Extracted tree exceeds the traversal budget.", "ARCHIVE_ENTRY_LIMIT");
+      const safePath = normaliseArchivePath(relativePath);
       const stat = fs.lstat(absolutePath);
 
       if (fs.isLink(stat.mode)) {
@@ -426,13 +347,17 @@ function collectExtractedFiles(fs, root) {
         continue;
       }
 
-      const safePath = normaliseArchivePath(relativePath);
+      if (declared.get(safePath) !== stat.size) throw new WorkerArchiveError("Extracted entry does not match inspected metadata.", "INVALID_ARCHIVE_METADATA");
+      totalBytes += stat.size;
+      if (totalBytes > limits.maxBytes || files.length >= limits.maxEntries) throw new WorkerArchiveError("Extracted data exceeds the collection budget.", "ARCHIVE_EXPANSION_LIMIT");
+      declared.delete(safePath);
       const bytes = fs.readFile(absolutePath, { encoding: "binary" }).slice();
       files.push({ path: safePath, size: bytes.byteLength, bytes });
     }
   };
 
   walk(root);
+  if (declared.size) throw new WorkerArchiveError("Extracted files do not match the inspected archive.", "INVALID_ARCHIVE_METADATA");
   return { files, skippedEntries };
 }
 
@@ -456,6 +381,7 @@ async function extractArchive(payload) {
   try {
     runtime.run([
       "x",
+      "-t7z",
       "-y",
       "-aoa",
       "-bb0",
@@ -464,7 +390,7 @@ async function extractArchive(payload) {
       "-o/out",
       "/input/archive.7z",
     ]);
-  } catch (error) {
+  } catch {
     throw new WorkerArchiveError(
       "Archive extraction failed. The passphrase may be incorrect or the archive may be damaged.",
       "ARCHIVE_EXTRACTION_FAILED",
@@ -472,7 +398,7 @@ async function extractArchive(payload) {
   }
 
   postProgress("collect", "Preparing extracted files for download…", 82);
-  const result = collectExtractedFiles(runtime.module.FS, "/out");
+  const result = collectExtractedFiles(runtime.module.FS, "/out", limits, inspection);
   const actualTotalBytes = result.files.reduce((total, entry) => total + entry.size, 0);
 
   if (actualTotalBytes > limits.maxBytes || result.files.length > limits.maxEntries) {
@@ -530,7 +456,6 @@ self.addEventListener("message", async (event) => {
       error instanceof WorkerArchiveError
         ? error
         : new WorkerArchiveError("The 7z operation failed unexpectedly.");
-    console.error(safeError);
     self.postMessage({
       type: "error",
       code: safeError.code,

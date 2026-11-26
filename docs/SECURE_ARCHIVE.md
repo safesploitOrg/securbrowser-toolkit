@@ -6,7 +6,7 @@ Secure Archive produces interoperable password-protected `.7z` files so recipien
 
 ## Runtime
 
-Secure Archive uses **sevenzip-wasm 26.3.0**, built from **7-Zip 26.03**.
+Secure Archive uses **sevenzip-wasm 26.6.0**, built from **7-Zip 26.06**.
 
 The upstream package is the 7-Zip `Alone2` bundle compiled with Emscripten and exposes the normal `SevenZipWasm()`, MEMFS and `callMain()` interfaces. SecurBrowser runs it exclusively inside a dedicated Web Worker and creates a fresh runtime for each command lifecycle.
 
@@ -81,7 +81,7 @@ These are safety ceilings, not performance targets. Because the WebAssembly file
 
 ## Password handling
 
-Passphrases are passed to the local 7-Zip-compatible process in the worker as an argument. They are not intentionally logged or persisted. Captured engine output is redacted for the active passphrase, and user-facing errors do not expose command arguments.
+Passphrases are passed to the local 7-Zip-compatible process in the worker as an argument. They are not intentionally logged or persisted. Raw captured engine output is restricted to internal metadata processing; user-facing errors do not expose command arguments.
 
 NUL characters are rejected because the WebAssembly engine retains command-line-compatible argument semantics.
 
@@ -107,4 +107,8 @@ The archive parser is a security-sensitive dependency. Upgrade sevenzip-wasm/7-Z
 4. run unit and three-browser end-to-end tests;
 5. test archive interoperability with native 7-Zip where practical.
 
-Older 24.x and 25.x WebAssembly builds were evaluated during development but are not shipped in v2.1.0. The selected 26.03 build is deliberately post-26.01 parser-fix work.
+Older 24.x and 25.x WebAssembly builds were evaluated during development but are not shipped in v2.1.0. The v2.2.0 candidate advances from 26.03 to 26.06; execution and interoperability verification remain required.
+
+## Candidate hardening and verification
+
+The worker forces the 7z handler, separates raw internal listing data from user diagnostics, rejects ambiguous sizes and path collisions, compares extracted entries with preflight metadata, and enforces a five-minute worker timeout. Actual decompressor allocations before collection remain a limitation. `scripts/test-7z-interop.sh` exercises the same WASM path with a native `7zz` or `7z` executable, using synthetic fixtures in both directions. See `testing.md`.

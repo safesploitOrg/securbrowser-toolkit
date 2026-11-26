@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.2.0-rc.2] — 2026-11-25 (candidate, not released)
+
+- 2026-11-26: Respect the project owner's pause of the general browser/axe CI job, update the configuration regression test to enforce the six remaining deployment dependencies, and retain the full browser suite for separate verification. Native/WASM interoperability (using Chromium) remains mandatory. The pause is not a successful browser result, production approval, or completed SFW Section 14 release exception.
+
+- Add read-only lockfile bootstrap workflow and reproducible local Bash script, validating actual npm resolution and installation before returning an artifact. Require a committed integrity-pinned lockfile in full CI.
+- Strengthen native 7-Zip testing with executable identity, correct-password listing, exact fatal-error checks, visible-header and truncated-archive negative controls, and an explicitly diagnostic native-only mode.
+- Retain verification evidence and bind the release review reference to the exact candidate commit. Preserve all mandatory gates and cryptographic/UI behaviour.
+- External downloads, native engine, full browser/scanner execution and owner approval remain outstanding in the authoring environment.
+- Staging CI remediation: automatically run the read-only lockfile bootstrap when its workflow or inputs change on `staging`, retain an existing lockfile, and return generated artifacts for manual review. Keep the normal CI lockfile gate unchanged.
+- Restore the full staging tree and commit the genuine CI-generated npm lockfile (90 integrity-pinned packages).
+- Correct the native interoperability fixture to create a real UTF-8 filename rather than literal octal escapes, and independently assert fixture names and contents.
+- Correct browser test setup for initial and changing OS appearance, and measure password-toggle geometry independently of automatic scrolling. All mandatory gates remain enabled; the corrections require a fresh CI run.
+- 2026-11-26: after native/WASM interoperability and 26/27 browser tests passed on staging, replace the failing Firefox media-emulation setup with a disposable Firefox instance using native website appearance preferences. Retain the same initial, live-transition, storage, privacy and computed-style assertions; connected Firefox revalidation is required.
+
+## [2.2.0-rc.1] — 2026-11-25 (candidate, not released)
+
+- Add native Linux/macOS 7-Zip and browser WASM bidirectional interoperability harness; preserve PBKDF2-SHA512/AES-GCM and legacy decryption.
+- Pin sevenzip-wasm 26.6.0 (7-Zip 26.06); verify cached runtime against original pinned ZIP.
+- Correct baseline HTML/ESLint findings, add operation cancellation, resource/metadata controls and non-overwrite directory saving.
+- Add System/Light/Dark preferences, contrast fixes, dynamic footer and local favicon; add independent crypto and UI tests.
+- Add security gates, single-artifact CI promotion and explicit owner-reviewed deployment. Lockfile generation and full CI/runtime verification remain release blockers.
+
 ## 2.1.1 - 2026-09-09
 
 ### Changed

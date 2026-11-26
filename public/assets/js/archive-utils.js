@@ -44,6 +44,7 @@ export function normaliseArchivePath(input) {
     throw new Error("Absolute archive paths are not permitted.");
   }
 
+  if (input.length > 4096 || [...input].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)) throw new Error("Unsafe archive path characters or length.");
   const cleaned = input.replaceAll("\\", "/");
   const parts = [];
 
@@ -63,6 +64,7 @@ export function normaliseArchivePath(input) {
     parts.push(part);
   }
 
+  if (parts.length > 64 || parts.some((part) => part.length > 255)) throw new Error("Archive path exceeds the depth or segment limit.");
   if (parts.length === 0) {
     throw new Error("Archive entry path is empty.");
   }

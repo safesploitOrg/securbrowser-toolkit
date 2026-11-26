@@ -1,3 +1,5 @@
+export const MAX_SECURE_FILE_BYTES = 512 * 1024 * 1024;
+export const MAX_PLAINTEXT_BYTES = MAX_SECURE_FILE_BYTES - 60;
 export const LARGE_FILE_WARNING_BYTES = 250 * 1024 * 1024;
 
 export function formatFileSize(bytes) {
@@ -28,6 +30,7 @@ export async function readFileBytes(file) {
     throw new TypeError("Expected a File object.");
   }
 
+  if (file.size > MAX_SECURE_FILE_BYTES) throw new RangeError("Secure File input exceeds the 512 MiB safety limit.");
   return new Uint8Array(await file.arrayBuffer());
 }
 

@@ -68,3 +68,7 @@ Legacy `Salted__` PBKDF2-SHA256/AES-CBC files also remain decryptable. New Secur
 ## 7z compatibility
 
 Secure Archive output is a standard 7z archive and does not require SecurBrowser for decryption. Recipients can use compatible 7z software and the passphrase.
+
+## v2.2.0 candidate
+
+Generate/review and commit the missing npm lock as described in `testing.md`. The Pages workflow is no longer independently dispatchable; use the CI manual run only after recorded human review and required settings. Existing encrypted v2 and legacy files retain their format; the archive format remains standard 7z.
