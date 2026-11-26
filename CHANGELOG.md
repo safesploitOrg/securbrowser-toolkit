@@ -10,6 +10,7 @@
 - Restore the full staging tree and commit the genuine CI-generated npm lockfile (90 integrity-pinned packages).
 - Correct the native interoperability fixture to create a real UTF-8 filename rather than literal octal escapes, and independently assert fixture names and contents.
 - Correct browser test setup for initial and changing OS appearance, and measure password-toggle geometry independently of automatic scrolling. All mandatory gates remain enabled; the corrections require a fresh CI run.
+- 2026-11-26: after native/WASM interoperability and 26/27 browser tests passed on staging, replace the failing Firefox media-emulation setup with a disposable Firefox instance using native website appearance preferences. Retain the same initial, live-transition, storage, privacy and computed-style assertions; connected Firefox revalidation is required.
 
 ## [2.2.0-rc.1] — 2026-11-25 (candidate, not released)
 

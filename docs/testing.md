@@ -45,3 +45,17 @@ Use `SEVENZIP_BIN=/path/to/7zz` to select an executable; otherwise prefer `7zz`,
 - Security: Gitleaks, npm audit and CodeQL SARIF gate. Review vendored component advisories separately; npm audit does not scan the WASM.
 
 A failed or missing mandatory gate blocks release. GitHub run [45666305045](https://github.com/safesploitOrg/securbrowser-toolkit/actions/runs/45666305045) verified the restored staging baseline: all quality and security jobs passed, 23/27 browser cases passed, and native 7-Zip diagnostics passed; full browser and bidirectional interoperability jobs failed. The subsequent test corrections must be verified in a fresh CI run. The fixture writer is independently checked for genuine UTF-8 filenames and exact binary bytes without requiring 7-Zip. The browser tests configure the initial OS appearance before page creation, wait for actual media-query and computed-style changes, and measure password-toggle geometry in document coordinates rather than viewport coordinates. See [verification](VERIFICATION.md) for exact revision evidence and remaining limitations.
+
+## Firefox system appearance verification
+
+The connected staging run [45725245514](https://github.com/safesploitOrg/securbrowser-toolkit/actions/runs/45725245514) passed bidirectional native/WASM interoperability, 59/59 unit tests and 26/27 browser cases. Firefox failed at the independent `matchMedia("(prefers-color-scheme: dark)")` assertion: the browser reported light despite the requested dark emulation. This establishes a test-input mismatch, not a demonstrated application theme defect.
+
+The revised Firefox test launches a disposable instance with the native `layout.css.prefers-color-scheme.content-override` preference set to dark (0) and disables Playwright colour-scheme emulation using `colorScheme: null`. It changes the actual Firefox website appearance through the native settings UI, then asserts the real media signal and computed app CSS after each live change. Chromium and WebKit retain Playwright media emulation and the same shared assertions. No browser is excluded, no assertion is weakened, and no production privacy preference is altered. The native settings UI is an additional test-runner compatibility dependency; if inaccessible or ineffective the test fails.
+
+Focused reproduction after the normal build and browser installation:
+
+```bash
+npx playwright test tests/e2e/ui.spec.js --project=firefox --grep "system appearance"
+```
+
+Run the full matrix afterward. The native Firefox setup has not been executed in the restricted authoring environment.

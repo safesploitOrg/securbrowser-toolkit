@@ -21,35 +21,81 @@ for (const viewport of VIEWPORTS) {
   });
 }
 
+// Firefox's Playwright 1.63.0 media emulation returned a light preference even
+// when dark was requested. Exercise the native website appearance setting in a
+// disposable Firefox instance instead, without mocking matchMedia or app CSS.
+async function withFirefoxAppearance(browser, baseURL, verify) {
+  const instance = await browser.browserType().launch({
+    firefoxUserPrefs: { "layout.css.prefers-color-scheme.content-override": 0 }
+  });
+  try {
+    const context = await instance.newContext({ baseURL, colorScheme: null, reducedMotion: "reduce" });
+    const page = await context.newPage();
+    let settings;
+    const changeSystemAppearance = async (scheme) => {
+      if (!settings) {
+        settings = await context.newPage();
+        await settings.goto("about:preferences#general");
+        const chooser = settings.locator("#web-appearance-chooser");
+        // Firefox builds may place website appearance in the Appearance pane.
+        try {
+          await chooser.waitFor({ state: "visible", timeout: 5_000 });
+        } catch (error) {
+          if (error.name !== "TimeoutError") throw error;
+          await settings.goto("about:preferences#appearance");
+        }
+        await expect(chooser).toBeVisible();
+      }
+      await settings.bringToFront();
+      const radio = settings.locator(`#web-appearance-chooser input[name="web-appearance"][value="${scheme}"]`);
+      await settings.locator("#web-appearance-chooser label").filter({ has: radio }).click();
+      await expect(radio).toBeChecked();
+      await page.bringToFront();
+    };
+    await verify(page, changeSystemAppearance);
+  } finally {
+    await instance.close();
+  }
+}
+
+async function verifySystemAppearance(page, changeSystemAppearance) {
+  const external = [];
+  page.on("request", (request) => { if (!request.url().startsWith("http://127.0.0.1:4173/") && !request.url().startsWith("blob:")) external.push(request.url()); });
+  await page.goto("/");
+  // Assert the browser's real preference separately from the app's response.
+  await expect(page.locator("#appearance")).toHaveValue("system");
+  await expect.poll(() => page.evaluate(() => window.matchMedia("(prefers-color-scheme: dark)").matches)).toBe(true);
+  await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
+  await page.locator("#appearance").selectOption("light");
+  await expect(page.locator("html")).toHaveCSS("color-scheme", "light");
+  await page.locator("#encrypt-passphrase").fill("synthetic password only");
+  await page.reload();
+  await expect(page.locator("#appearance")).toHaveValue("light");
+  await expect(page.locator("html")).toHaveCSS("color-scheme", "light");
+  await expect(page.locator("#encrypt-passphrase")).toHaveValue("");
+  expect(await page.evaluate(() => Object.fromEntries(Object.entries(localStorage)))).toEqual({ "securbrowser.preferences.v1": '{"appearance":"light"}' });
+  await page.locator("#appearance").selectOption("system");
+  await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
+  await changeSystemAppearance("light");
+  await expect.poll(() => page.evaluate(() => window.matchMedia("(prefers-color-scheme: light)").matches)).toBe(true);
+  await expect(page.locator("html")).toHaveCSS("color-scheme", "light");
+  await changeSystemAppearance("dark");
+  await expect.poll(() => page.evaluate(() => window.matchMedia("(prefers-color-scheme: dark)").matches)).toBe(true);
+  await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
+  expect(external).toEqual([]);
+  await expect(page.locator("footer a")).toHaveAttribute("href", "https://github.com/safesploitOrg/securbrowser-toolkit/");
+  await expect(page.locator("#footer-year")).toHaveText(String(new Date().getFullYear()));
+}
+
 test.describe("system appearance", () => {
-  // Configure the context before its page is created, including Firefox.
   test.use({ colorScheme: "dark", reducedMotion: "reduce" });
-  test("system appearance follows OS and manual choice survives reload without task data", async ({ page }) => {
-    const external = [];
-    page.on("request", (request) => { if (!request.url().startsWith("http://127.0.0.1:4173/") && !request.url().startsWith("blob:")) external.push(request.url()); });
-    await page.goto("/");
-    await expect(page.locator("#appearance")).toHaveValue("system");
-    await expect.poll(() => page.evaluate(() => window.matchMedia("(prefers-color-scheme: dark)").matches)).toBe(true);
-    await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
-    await page.locator("#appearance").selectOption("light");
-    await expect(page.locator("html")).toHaveCSS("color-scheme", "light");
-    await page.locator("#encrypt-passphrase").fill("synthetic password only");
-    await page.reload();
-    await expect(page.locator("#appearance")).toHaveValue("light");
-    await expect(page.locator("html")).toHaveCSS("color-scheme", "light");
-    await expect(page.locator("#encrypt-passphrase")).toHaveValue("");
-    expect(await page.evaluate(() => Object.fromEntries(Object.entries(localStorage)))).toEqual({ "securbrowser.preferences.v1": '{"appearance":"light"}' });
-    await page.locator("#appearance").selectOption("system");
-    await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
-    await page.emulateMedia({ colorScheme: "light" });
-    await expect.poll(() => page.evaluate(() => window.matchMedia("(prefers-color-scheme: light)").matches)).toBe(true);
-    await expect(page.locator("html")).toHaveCSS("color-scheme", "light");
-    await page.emulateMedia({ colorScheme: "dark" });
-    await expect.poll(() => page.evaluate(() => window.matchMedia("(prefers-color-scheme: dark)").matches)).toBe(true);
-    await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
-    expect(external).toEqual([]);
-    await expect(page.locator("footer a")).toHaveAttribute("href", "https://github.com/safesploitOrg/securbrowser-toolkit/");
-    await expect(page.locator("#footer-year")).toHaveText(String(new Date().getFullYear()));
+  test("system appearance follows OS and manual choice survives reload without task data", async ({ page, browser, browserName, baseURL }) => {
+    test.setTimeout(60_000);
+    if (browserName === "firefox") {
+      await withFirefoxAppearance(browser, baseURL, verifySystemAppearance);
+    } else {
+      await verifySystemAppearance(page, (scheme) => page.emulateMedia({ colorScheme: scheme }));
+    }
   });
 });
 
