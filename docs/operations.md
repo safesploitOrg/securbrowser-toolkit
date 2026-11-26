@@ -4,7 +4,7 @@
 
 The CI workflow runs on PRs, main pushes and explicit manual runs. A manual run with `deploy=true` and a non-empty human approval reference and `approval_commit` matching the exact full commit SHA on `main` requests production deployment; the reusable Pages workflow cannot be dispatched independently and has all required CI jobs as dependencies. Configure required branch checks and github-pages environment restrictions/reviewers in GitHub. Record owner review against the exact commit and evidence; an input value alone cannot prove human approval. No auto-publish on push.
 
-Release builds `public/` once, stores a file checksum manifest and verified vendor ZIP outside the public tree, runs browser and native interoperability against that exact candidate, and promotes the same public artifact. Post-deploy checks verify the page and served WASM SHA. Retain the source commit, evidence and artifact or equivalent validated build inputs for rollback; artifact retention in CI is seven days, so archive approved releases separately if longer rollback is required.
+Release builds `public/` once, stores a file checksum manifest and verified vendor ZIP outside the public tree, runs native/WASM interoperability against that exact candidate, and promotes the same public artifact. The general browser/axe CI job is temporarily paused by the project owner; record separate browser evidence or a valid SFW Section 14 release exception before requesting promotion. Post-deploy checks verify the page and served WASM SHA. Retain the source commit, evidence and artifact or equivalent validated build inputs for rollback; artifact retention in CI is seven days, so archive approved releases separately if longer rollback is required.
 
 ## Incident and rollback
 
@@ -14,4 +14,4 @@ Monitor HTTPS availability, static asset availability and vendor advisories; use
 
 ## Release evidence
 
-Retain the CI run URL and unit, dependency-audit, secret-scan status, SAST, browser and interoperability evidence artifacts. Secret-scan artifacts contain only the exit status; scanner console output is redacted. A recorded owner decision and protected environment approval remain separate from automated verification. See [release checklist](RELEASE_CHECKLIST.md).
+Retain the CI run URL and unit, dependency-audit, secret-scan status, SAST and interoperability evidence artifacts, plus separate browser evidence or the approved exception while the general browser/axe CI job is paused. Secret-scan artifacts contain only the exit status; scanner console output is redacted. A recorded owner decision and protected environment approval remain separate from automated verification. See [release checklist](RELEASE_CHECKLIST.md).

@@ -31,10 +31,20 @@ describe("tooling configuration", () => {
     }
   });
 
-  it("gates deploy on all quality, security and interoperability jobs", () => {
-    assert.match(CI_WORKFLOW, /needs: \[quality, dependency-audit, secrets, sast, browser, interoperability, release-review\]/);
-    assert.match(CI_WORKFLOW, /npm ci --ignore-scripts/);
-    assert.match(CI_WORKFLOW, /scripts\/test-7z-interop\.sh/);
+  it("gates deploy on all active quality, security and interoperability jobs", () => {
+    // Match the active flow-style dependency list, not commented-out YAML.
+    // The owner paused the general browser/axe job; do not weaken other gates.
+    const active = CI_WORKFLOW.replace(/^[ \t]*#.*$/gm, "");
+    const sections = active.split(/^  deploy:[ \t]*$/m);
+    assert.equal(sections.length, 2, "expected one active deployment job");
+    const needs = sections[1].match(/^    needs: \[([^\]]+)\]/m);
+    assert.ok(needs, "deployment must declare its required jobs");
+    const required = ["quality", "dependency-audit", "secrets", "sast", "interoperability", "release-review"];
+    assert.deepEqual(needs[1].split(",").map((name) => name.trim()).sort(), [...required].sort());
+    for (const name of required) assert.match(active, new RegExp(`^  ${name}:$`, "m"));
+    assert.doesNotMatch(active, /^  browser:/m);
+    assert.match(active, /npm ci --ignore-scripts/);
+    assert.match(active, /bash scripts\/test-7z-interop\.sh/);
     assert.match(DEPLOY_WORKFLOW, /workflow_call:/);
     assert.doesNotMatch(DEPLOY_WORKFLOW, /^\s{2}workflow_dispatch:/m);
     assert.doesNotMatch(DEPLOY_WORKFLOW, /npm run build:public/);

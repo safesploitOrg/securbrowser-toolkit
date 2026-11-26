@@ -2,6 +2,8 @@
 
 ## [2.2.0-rc.2] — 2026-11-25 (candidate, not released)
 
+- 2026-11-26: Respect the project owner's pause of the general browser/axe CI job, update the configuration regression test to enforce the six remaining deployment dependencies, and retain the full browser suite for separate verification. Native/WASM interoperability (using Chromium) remains mandatory. The pause is not a successful browser result, production approval, or completed SFW Section 14 release exception.
+
 - Add read-only lockfile bootstrap workflow and reproducible local Bash script, validating actual npm resolution and installation before returning an artifact. Require a committed integrity-pinned lockfile in full CI.
 - Strengthen native 7-Zip testing with executable identity, correct-password listing, exact fatal-error checks, visible-header and truncated-archive negative controls, and an explicitly diagnostic native-only mode.
 - Retain verification evidence and bind the release review reference to the exact candidate commit. Preserve all mandatory gates and cryptographic/UI behaviour.

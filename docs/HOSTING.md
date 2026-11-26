@@ -24,7 +24,7 @@ After this build step, the deployed `public/` directory is self-contained: the a
 
 ## GitHub Pages
 
-CI builds and hashes the exact public artifact once. Browser and native interoperability jobs validate it, then the reusable Pages workflow can promote it only when all mandatory quality and security jobs pass and an owner-reviewed manual main release is requested. Configure the production environment protection and release record as described in `operations.md`.
+CI builds and hashes the exact public artifact once. The native/WASM interoperability job validates it, then the reusable Pages workflow can promote it only when all enabled quality and security gates pass and an owner-reviewed manual main release is requested. The owner has paused general browser/axe CI; separate browser evidence or an approved SFW Section 14 exception is required before production release. Configure the production environment protection and release record as described in `operations.md`.
 
 ## MIME types
 

@@ -213,3 +213,7 @@ SecurBrowser Toolkit is licensed under the MIT Licence. sevenzip-wasm and the ge
 ## Native archive interoperability and SFW
 
 Run `bash scripts/test-7z-interop.sh` after `npm ci`, `npm run build:public` and Playwright Chromium setup. It tests actual native 7-Zip and browser WASM archives in both directions. See [testing](docs/testing.md), [threat model](docs/threat-model.md), [operations](docs/operations.md) and [SFW adoption](docs/SFW_ADOPTION.md). Theme preferences persist locally; no task inputs are stored.
+
+### Current candidate verification
+
+The project owner paused the general browser/axe CI job on 26 November 2026. The native/WASM interoperability job still runs real Chromium via Playwright. The full browser suite remains available via `npm run test:e2e:built`; the last connected matrix passed 26/27. See [release checklist](docs/RELEASE_CHECKLIST.md) for outstanding browser verification and release approval requirements. The candidate is not a stable release.

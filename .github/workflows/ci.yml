@@ -181,6 +181,9 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  # General browser/axe CI paused by project owner on 2026-11-26.
+  # See docs/RELEASE_CHECKLIST.md: release evidence or a recorded SFW exception
+  # is still required. Native/WASM interoperability remains mandatory.
   # browser:
   #   name: Browser and accessibility tests
   #   runs-on: ubuntu-latest
@@ -289,12 +292,12 @@ jobs:
   deploy:
     name: Release approved candidate
     needs: [
-      quality, 
-      dependency-audit, 
-      secrets, 
-      sast, 
-      # browser, 
-      interoperability, 
+      quality,
+      dependency-audit,
+      secrets,
+      sast,
+      # browser,
+      interoperability,
       release-review]
     if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy && inputs.approval_reference != '' && inputs.approval_commit == github.sha }}
     permissions:

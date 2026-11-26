@@ -24,3 +24,7 @@ The baseline GitHub CI run 34322412332 had 38/38 unit tests passing, one HTML er
 Owner must configure branch rulesets, required checks and the github-pages environment, review dependency and SAST findings, record T2 release decision, and complete all mandatory checks before enabling publication. Current release candidate is not release-ready.
 
 RC.2 adds reproducible lockfile preparation, stronger native negative controls, evidence artifacts and exact-commit release review validation. These changes do not substitute for actual connected-runner verification or human approval.
+
+## Connected-runner status — 26 November 2026
+
+The committed lockfile, full quality checks, security scans and native/WASM interoperability passed on staging run [45726216033](https://github.com/safesploitOrg/securbrowser-toolkit/actions/runs/45726216033). The general browser matrix passed 26/27; Firefox system appearance remains unverified. The owner subsequently paused that CI job. UI-015 browser verification is incomplete and an exact-commit human T2 release decision, manual accessibility/advisory review and full browser evidence or valid Section 14 exception remain outstanding. See [release checklist](RELEASE_CHECKLIST.md).

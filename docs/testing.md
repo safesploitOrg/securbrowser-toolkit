@@ -59,3 +59,7 @@ npx playwright test tests/e2e/ui.spec.js --project=firefox --grep "system appear
 ```
 
 Run the full matrix afterward. The native Firefox setup has not been executed in the restricted authoring environment.
+
+## General browser CI pause — 26 November 2026
+
+The owner intentionally paused the general browser/axe CI job in staging commit `c216b71b8f5d46c831cecda24fb98a04b82f0209` after [run 45726216033](https://github.com/safesploitOrg/securbrowser-toolkit/actions/runs/45726216033) reported 26/27 browser tests, with the Firefox system-appearance test timing out on both attempts. All browser tests and `npm run test:e2e:built` remain available locally. The native/WASM 7-Zip job still uses real Playwright Chromium and is not paused. The full matrix is NOT RUN in current CI; do not report it as PASS. Separate current-revision evidence or a documented, time-bounded owner-approved Section 14 release exception is required before production release. See [release checklist](RELEASE_CHECKLIST.md).
