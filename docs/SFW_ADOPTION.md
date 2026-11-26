@@ -23,7 +23,7 @@ The baseline GitHub CI run 34322412332 had 38/38 unit tests passing, one HTML er
 
 Owner must configure branch rulesets, required checks and the github-pages environment, review dependency and SAST findings, record T2 release decision, and complete all mandatory checks before enabling publication. Current release candidate is not release-ready.
 
-RC.2 adds reproducible lockfile preparation, stronger native negative controls, evidence artifacts and exact-commit release review validation. These changes do not substitute for actual connected-runner verification or human approval.
+RC.2 adds reproducible lockfile preparation, stronger native negative controls, evidence artifacts and exact-commit release review validation. The revised CD implementation uses GitHub environment approval after successful main CI, with separate read-only Pages preparation and artifact-ID binding. This is an implementation choice under SFW v1.1.0 Sections 3, 7 and 11, not a change to the standard. These changes do not substitute for actual connected-runner verification or human approval.
 
 ## Connected-runner status — 26 November 2026
 

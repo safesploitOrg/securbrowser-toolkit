@@ -2,6 +2,8 @@
 
 ## [2.2.0-rc.2] — 2026-11-25 (candidate, not released)
 
+- 2026-11-26: Replace the manual CI re-dispatch release mechanism with same-run continuous delivery. A successful main push prepares Pages from the exact tested artifact, then waits for human `github-pages` environment approval. Require a configured individual reviewer, main-only branch policy, recorded approval comment, matching artifact identity/digest and current main revision. Use the pinned Pages upload action v5.0.0, preserve hidden files, separate upload from deployment and verify the actual tar contents; add bounded artifact-visibility checks and negative policy regressions. Keep the native/WASM and all other enabled gates. The general browser/axe pause and its outstanding release disposition are unchanged. No runtime or dependency changes.
+
 - 2026-11-26: Respect the project owner's pause of the general browser/axe CI job, update the configuration regression test to enforce the six remaining deployment dependencies, and retain the full browser suite for separate verification. Native/WASM interoperability (using Chromium) remains mandatory. The pause is not a successful browser result, production approval, or completed SFW Section 14 release exception.
 
 - Add read-only lockfile bootstrap workflow and reproducible local Bash script, validating actual npm resolution and installation before returning an artifact. Require a committed integrity-pinned lockfile in full CI.

@@ -188,7 +188,7 @@ Build the generated runtime first and publish **only `public/`**:
 npm run build:public
 ```
 
-GitHub Pages deployment is a reusable workflow gated by all jobs in `.github/workflows/ci.yml`; see `docs/operations.md`.
+GitHub Pages uses continuous delivery: a successful `main` push CI run prepares the exact validated artifact and waits for human approval on the protected `github-pages` environment. PRs and manual CI runs validate only. There is no second CI run or manual commit-SHA input. Configure the environment before merging the CD change; see [operations](docs/operations.md).
 
 For other servers, see [`docs/HOSTING.md`](docs/HOSTING.md).
 

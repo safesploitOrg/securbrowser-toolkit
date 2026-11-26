@@ -39,7 +39,7 @@ describe("tooling configuration", () => {
     assert.equal(sections.length, 2, "expected one active deployment job");
     const needs = sections[1].match(/^    needs: \[([^\]]+)\]/m);
     assert.ok(needs, "deployment must declare its required jobs");
-    const required = ["quality", "dependency-audit", "secrets", "sast", "interoperability", "release-review"];
+    const required = ["quality", "dependency-audit", "secrets", "sast", "interoperability"];
     assert.deepEqual(needs[1].split(",").map((name) => name.trim()).sort(), [...required].sort());
     for (const name of required) assert.match(active, new RegExp(`^  ${name}:$`, "m"));
     assert.doesNotMatch(active, /^  browser:/m);
@@ -50,13 +50,37 @@ describe("tooling configuration", () => {
     assert.doesNotMatch(DEPLOY_WORKFLOW, /npm run build:public/);
   });
 
-  it("keeps bootstrap read-only and deployment tied to the reviewed commit", () => {
+  it("keeps bootstrap read-only and deployment tied to the validated artifact", () => {
     assert.match(BOOTSTRAP_WORKFLOW, /contents: read/);
     assert.doesNotMatch(BOOTSTRAP_WORKFLOW, /contents: write|pages: write|git push|deploy-pages/);
     assert.match(BOOTSTRAP_WORKFLOW, /scripts\/prepare-lockfile\.sh/);
-    assert.match(CI_WORKFLOW, /inputs\.approval_commit == github\.sha/);
-    assert.match(DEPLOY_WORKFLOW, /inputs\.approval_commit == github\.sha/);
+    assert.match(CI_WORKFLOW, /candidate_artifact_id: \$\{\{ steps\.candidate\.outputs\.artifact-id \}\}/);
+    assert.match(CI_WORKFLOW, /candidate_artifact_id: \$\{\{ needs\.quality\.outputs\.candidate_artifact_id \}\}/);
+    assert.match(DEPLOY_WORKFLOW, /artifact-ids: \$\{\{ inputs\.candidate_artifact_id \}\}/);
+    assert.match(DEPLOY_WORKFLOW, /test "\$\(cat release-bundle\/SOURCE_COMMIT\)" = "\$GITHUB_SHA"/);
+    assert.doesNotMatch(CI_WORKFLOW + DEPLOY_WORKFLOW, /inputs\.approval_commit|inputs\.approval_reference|inputs\.deploy/);
     assert.match(CI_WORKFLOW, /npm run lockfile:check/);
+  });
+
+  it("packages before the protected CD job and cannot publish from PR or manual CI runs", () => {
+    const gate = /if: \$\{\{ github\.event_name == 'push' && github\.ref == 'refs\/heads\/main' \}\}/;
+    assert.match(CI_WORKFLOW.split(/^  deploy:$/m)[1], gate);
+    const [prepare, deploy] = DEPLOY_WORKFLOW.split(/^  deploy:$/m);
+    assert.ok(deploy, "expected separate deployment job");
+    assert.match(prepare, gate);
+    assert.match(deploy, gate);
+    assert.doesNotMatch(prepare, /pages: write|id-token: write|actions\/deploy-pages@/);
+    assert.match(prepare, /actions\/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9/);
+    assert.match(prepare, /include-hidden-files: true/);
+    assert.match(prepare, /node scripts\/check-pages-policy\.mjs prepare/);
+    assert.match(prepare, /cmp release-bundle\/SHA256SUMS/);
+    assert.match(deploy, /needs: prepare/);
+    assert.match(deploy, /environment:\n      name: github-pages/);
+    assert.match(deploy, /node scripts\/check-pages-policy\.mjs deploy/);
+    assert.match(deploy, /EXPECTED_TAR_SHA256: \$\{\{ needs\.prepare\.outputs\.tar_sha256 \}\}/);
+    assert.match(deploy, /artifact_name: \$\{\{ needs\.prepare\.outputs\.pages_artifact_name \}\}/);
+    assert.doesNotMatch(deploy, /actions\/upload-pages-artifact@|npm ci|npm run build:public/);
+    assert.ok(deploy.indexOf("node scripts/check-pages-policy.mjs deploy") < deploy.indexOf("actions/deploy-pages@"));
   });
 
   it("bootstraps the lockfile on staging pushes without weakening normal CI", () => {
