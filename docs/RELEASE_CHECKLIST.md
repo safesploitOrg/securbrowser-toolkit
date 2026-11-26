@@ -11,10 +11,10 @@ Profiles B+D, T2. This checklist records evidence, not approval by the authoring
 
 ## Mandatory CI gates
 
-- [ ] Quality (HTML-Validate, ESLint, offline/unit checks, Bash syntax, verified WASM build).
+- [ ] Quality (HTML-Validate, ESLint, offline/unit checks, Bash syntax, verified WASM build and mandatory actual WASM single-file regressions).
 - [ ] Dependency audit, secret scan and CodeQL results reviewed under `SECURITY.md`.
 - [ ] Browser tests on Chromium, Firefox and WebKit, including axe and real archive round trips (general CI job paused; separate exact-revision evidence or valid Section 14 exception required before release).
-- [ ] Native 7-Zip interoperability, including both directions, negative controls and byte comparisons. Native-only diagnostics are insufficient.
+- [ ] Native 7-Zip interoperability, including both directions, single-file and empty-file cases, all compression levels, negative controls and byte comparisons. Native-only diagnostics are insufficient.
 - [ ] Manual keyboard/focus, 200% zoom and screen reader review; record results and outstanding accessibility issues.
 - [ ] Verify public artifact, deployment boundary, rollback and post-deployment smoke plan.
 

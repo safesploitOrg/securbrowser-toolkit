@@ -20,11 +20,6 @@ function postProgress(stage, message, percent) {
   self.postMessage({ type: "progress", stage, message, percent });
 }
 
-function redact(value, passphrase) {
-  const text = String(value ?? "");
-  return passphrase ? text.split(passphrase).join("[redacted]") : text;
-}
-
 function loadSevenZipFactory() {
   if (!sevenZipLoaded) {
     try {
@@ -49,11 +44,12 @@ function loadSevenZipFactory() {
   return self.SevenZipWasm;
 }
 
-async function createSevenZipRuntime(passphrase = "", maxCapturedLines = DEFAULT_CAPTURED_LINES) {
+async function createSevenZipRuntime(maxCapturedLines = DEFAULT_CAPTURED_LINES) {
   const factory = loadSevenZipFactory();
   const output = [];
   let exitCode = null;
-  let abortReason = null;
+  let aborted = false;
+  let undefinedAbort = false;
   let outputOverflow = false;
   let outputBytes = 0;
 
@@ -72,10 +68,11 @@ async function createSevenZipRuntime(passphrase = "", maxCapturedLines = DEFAULT
     stdin: () => null,
     locateFile: (path) => (path.endsWith(".wasm") ? VENDOR_WASM_URL.href : path),
     onAbort: (reason) => {
-      abortReason = redact(reason, passphrase);
+      aborted = true;
+      undefinedAbort = reason === undefined;
     },
     onExit: (code) => {
-      exitCode = Number(code) || 0;
+      exitCode = code;
     },
   });
 
@@ -84,8 +81,11 @@ async function createSevenZipRuntime(passphrase = "", maxCapturedLines = DEFAULT
     output,
     run(args) {
       exitCode = null;
-      abortReason = null;
+      aborted = false;
+      undefinedAbort = false;
       let returnValue;
+      let commandError = null;
+      let unexpectedException = false;
 
       try {
         returnValue = module.callMain(args);
@@ -93,7 +93,8 @@ async function createSevenZipRuntime(passphrase = "", maxCapturedLines = DEFAULT
         if (typeof error?.status === "number") {
           exitCode = error.status;
         } else {
-          throw error;
+          commandError = error;
+          unexpectedException = true;
         }
       }
 
@@ -104,20 +105,27 @@ async function createSevenZipRuntime(passphrase = "", maxCapturedLines = DEFAULT
         );
       }
 
-      if (abortReason) {
-        throw new WorkerArchiveError("7-Zip aborted.", "SEVEN_ZIP_ABORTED");
+      if (aborted) {
+        // The upstream no-exception-catching build aborts on a wrong password
+        // for AES-only headers. Classify its exact observed failure separately;
+        // it is never sufficient evidence of encryption on its own.
+        const knownAbort = undefinedAbort && commandError instanceof WebAssembly.RuntimeError &&
+          commandError.message === "Aborted(undefined). Build with -sASSERTIONS for more info." &&
+          output.some((line) => line === "Aborted(undefined)");
+        throw new WorkerArchiveError("The local 7-Zip engine aborted.", knownAbort ? "SEVEN_ZIP_UNCAUGHT_EXCEPTION" : "SEVEN_ZIP_ABORTED");
       }
+      if (unexpectedException) throw new WorkerArchiveError("The local 7-Zip engine failed during processing.", "SEVEN_ZIP_RUNTIME_FAILED");
 
       if (exitCode === null && typeof returnValue === "number") {
         exitCode = returnValue;
       }
 
-      const code = exitCode ?? 0;
+      const code = exitCode;
+      if (!Number.isInteger(code)) throw new WorkerArchiveError("7-Zip did not return a valid exit status.", "SEVEN_ZIP_RUNTIME_FAILED");
       if (code !== 0) {
-        throw new WorkerArchiveError(
-          `7-Zip returned exit code ${code}.`,
-          "SEVEN_ZIP_COMMAND_FAILED",
-        );
+        const failure = new WorkerArchiveError(`7-Zip returned exit code ${code}.`, "SEVEN_ZIP_COMMAND_FAILED");
+        failure.exitCode = code;
+        throw failure;
       }
     },
   };
@@ -202,11 +210,11 @@ async function stageArchiveInputs(runtime, entries) {
 
 async function verifyArchive(archiveBytes, passphrase, expectedEntries) {
   postProgress("verify", "Verifying the encrypted archive…", 80);
-  const runtime = await createSevenZipRuntime(passphrase);
+  const runtime = await createSevenZipRuntime();
   runtime.module.FS.writeFile("/archive.7z", archiveBytes);
   runtime.run(["t", "-t7z", "-y", "-bb0", "-bd", `-p${passphrase}`, "/archive.7z"]);
 
-  const listingRuntime = await createSevenZipRuntime(passphrase, MAX_LISTING_LINES);
+  const listingRuntime = await createSevenZipRuntime(MAX_LISTING_LINES);
   listingRuntime.module.FS.writeFile("/archive.7z", archiveBytes);
   listingRuntime.run(["l", "-t7z", "-slt", "-bb0", "-bd", `-p${passphrase}`, "/archive.7z"]);
   const inspection = policy.parseTechnicalListing(listingRuntime.output, { maxEntries: 2000, maxBytes: 1024 * 1024 * 1024 });
@@ -217,7 +225,7 @@ async function verifyArchive(archiveBytes, passphrase, expectedEntries) {
 
   postProgress("verify-headers", "Verifying that filenames require the correct passphrase…", 90);
   const wrongPassphrase = createWrongVerificationPassphrase();
-  const wrongPasswordRuntime = await createSevenZipRuntime(wrongPassphrase, MAX_LISTING_LINES);
+  const wrongPasswordRuntime = await createSevenZipRuntime(MAX_LISTING_LINES);
   wrongPasswordRuntime.module.FS.writeFile("/archive.7z", archiveBytes);
 
   try {
@@ -231,9 +239,17 @@ async function verifyArchive(archiveBytes, passphrase, expectedEntries) {
       "/archive.7z",
     ]);
   } catch (error) {
-    if (error instanceof WorkerArchiveError && error.code === "SEVEN_ZIP_COMMAND_FAILED" &&
-        !wrongPasswordRuntime.output.some((line) => line.trim() === "----------")) {
-      return true;
+    const entriesDisclosed = wrongPasswordRuntime.output.some((line) => line.trim() === "----------");
+    if (error instanceof WorkerArchiveError && !entriesDisclosed) {
+      if (error.code === "SEVEN_ZIP_COMMAND_FAILED" && error.exitCode === 2) return true;
+      if (error.code === "SEVEN_ZIP_UNCAUGHT_EXCEPTION" && expectedEntries.length === 1) {
+        // Correct-password integrity and exact entry/size checks already passed.
+        // Confirm the actual outer header independently: an encoded header
+        // with one AES-256 coder and no clear metadata. Never accept an abort
+        // alone, and do not apply this path to externally supplied archives.
+        try { return policy.verifySingleItemEncryptedHeader(archiveBytes); }
+        catch { throw new WorkerArchiveError("Single-file archive header protection could not be verified. No archive was released.", "HEADER_ENCRYPTION_VERIFY_FAILED"); }
+      }
     }
     throw error;
   }
@@ -253,7 +269,7 @@ async function createArchive(payload) {
   }
 
   postProgress("load", "Loading the local 7-Zip engine…", 2);
-  const runtime = await createSevenZipRuntime(passphrase);
+  const runtime = await createSevenZipRuntime();
   const { topLevel, inputBytes } = await stageArchiveInputs(runtime, entries);
 
   postProgress("compress", "Compressing and encrypting files…", 30);
@@ -296,7 +312,7 @@ async function createArchive(payload) {
 
 async function inspectArchive(archiveBytes, passphrase, limits) {
   postProgress("inspect", "Checking archive metadata and safety limits…", 15);
-  const runtime = await createSevenZipRuntime(passphrase, MAX_LISTING_LINES);
+  const runtime = await createSevenZipRuntime(MAX_LISTING_LINES);
   runtime.module.FS.writeFile("/archive.7z", archiveBytes);
 
   try {
@@ -372,7 +388,7 @@ async function extractArchive(payload) {
   const inspection = await inspectArchive(archiveBytes, passphrase, limits);
   postProgress("extract", "Decrypting and extracting archive contents…", 45);
 
-  const runtime = await createSevenZipRuntime(passphrase);
+  const runtime = await createSevenZipRuntime();
   ensureDirectory(runtime.module.FS, "/input");
   ensureDirectory(runtime.module.FS, "/out");
   runtime.module.FS.writeFile("/input/archive.7z", archiveBytes);

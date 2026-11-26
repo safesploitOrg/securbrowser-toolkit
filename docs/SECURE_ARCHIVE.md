@@ -37,7 +37,16 @@ Archive Web Worker
 Verified .7z Blob --> browser download
 ```
 
-Filename encryption is mandatory; the UI does not expose a switch to disable it. If the post-creation wrong-password listing unexpectedly succeeds, SecurBrowser fails closed and does not offer the archive for download.
+Filename encryption is mandatory; the UI does not expose a switch to disable it. If the post-creation wrong-password listing unexpectedly succeeds, SecurBrowser fails closed and does not offer the archive for download. The correct-password test also checks the exact regular-file paths and sizes.
+
+### Single-item header compatibility
+
+The pinned upstream engine disables header compression for fewer than two items but still encrypts the header when `-mhe=on`. Its build sets `DISABLE_EXCEPTION_CATCHING=1`; a wrong password against the AES-only header can therefore abort the WASM runtime instead of returning fatal exit code 2. This was reproduced using a synthetic 154-byte extensionless file at all four supported compression levels; two-file archives used the normal error-code path.
+
+The correction does not rebuild or replace the vendor engine. The normal wrong-password listing must return exit code 2 without emitting the entry section. Only for a newly generated archive with one selected file, the exact observed Emscripten undefined-abort exception may additionally be handled by a bounded, independent outer-header verifier, after the correct-password integrity and exact entry checks have passed. The verifier checks the 7z signature/version, start/next-header CRCs, exact archive bounds, one packed stream, one inline folder/coder, the 7zAES method ID and pinned engine properties (2^19 SHA-256 cycles and a 16-byte IV), encrypted block alignment, decoded-size consistency, the required decoded-header CRC field and no extra metadata. It does not decrypt independently or prove ciphertext authenticity; CRCs are not cryptographic MACs. Unexpected layouts, unrelated aborts, successful wrong-password listings and entry disclosure fail closed. This narrowly scoped generated-output check is not used to parse untrusted external archive headers during extraction. No extra files are inserted.
+
+References: [upstream single-item header behaviour](https://github.com/ip7z/7zip/blob/d3296e39e1f1f92c7b41c0c3848e65640428d42d/CPP/7zip/Archive/7z/7zHandlerOut.cpp#L737-L779), [pinned Emscripten build flags](https://github.com/arktronic/sevenzip-wasm/blob/eba9a8492d7b5c4c673b69314a6b75eb81f75742/7zip-26.05.patch), [7z format](https://github.com/ip7z/7zip/blob/d3296e39e1f1f92c7b41c0c3848e65640428d42d/DOC/7zFormat.txt). Review the narrow compatibility check whenever the engine changes; a future engine built with working C++ exception handling is preferable to this fallback. Native 7-Zip wrong-password listing and extraction/byte verification remain mandatory.
+
 
 ## Extraction flow
 

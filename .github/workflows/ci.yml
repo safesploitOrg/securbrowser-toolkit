@@ -72,6 +72,20 @@ jobs:
           retention-days: 14
       - name: Build pinned WASM runtime once
         run: npm run build:public
+      - name: Run real WASM archive regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verification-reports
+          npm run test:wasm | tee verification-reports/wasm-runtime-tests.txt
+      - name: Retain WASM runtime evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: wasm-runtime-evidence
+          path: verification-reports/wasm-runtime-tests.txt
+          if-no-files-found: warn
+          retention-days: 14
       - name: Package candidate and integrity manifest
         run: |
           mkdir -p release-bundle

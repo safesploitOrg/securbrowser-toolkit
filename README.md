@@ -105,13 +105,26 @@ Prepare and verify the pinned local archive runtime:
 npm run build:public
 ```
 
-Start the local server:
+Start the local server (build and serve in one command):
 
 ```bash
 npm run dev
 ```
 
-Open `http://127.0.0.1:4173/`.
+Open `http://127.0.0.1:8080/`. For a different port use `npm run serve -- --port 8081` after building. The server binds to loopback only, serves the local WASM with `application/wasm`, and disables HTTP caching for development. Opening `index.html` using `file://` is not supported.
+
+### Quick local regression before committing
+
+With the pinned Node version installed (for example, `nvm install "$(cat .node-version)"` followed by `nvm use "$(cat .node-version)"`), run:
+
+```bash
+npm run build:public
+npm run check:offline
+npm run test:wasm
+npm run serve
+```
+
+The build verifies the original pinned release ZIP, the offline gate needs no npm packages, and `test:wasm` executes the production worker against the real pinned WASM through a Node message-boundary adapter. None of these commands requires Playwright, native 7-Zip or GitHub CI. For complete browser/native verification install the locked development tooling and Chromium as described in [Testing](docs/testing.md).
 
 After `npm run build:public`, the generated `public/` tree is self-contained for runtime hosting; no CDN or application API is required.
 
@@ -127,6 +140,7 @@ npm run style:check
 npm run validate:html:static
 npm run validate:html
 npm run test:unit
+npm run test:wasm
 npm run lint
 npm run test:e2e
 ```
@@ -138,7 +152,7 @@ The test suite covers:
 - SecurBrowser v2 encryption/decryption round trips.
 - AES-GCM tamper and wrong-passphrase rejection.
 - Legacy CBC compatibility.
-- 7z path/signature/limit utility checks.
+- 7z path/signature/limit utility checks, strict generated single-item AES header checks and real-WASM single-file regressions at every supported compression level.
 - Vendor pin configuration.
 - Playwright browser round trips for Secure File and Secure Archive in Chromium, Firefox and WebKit.
 

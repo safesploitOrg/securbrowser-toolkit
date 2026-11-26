@@ -99,3 +99,16 @@ describe("tooling configuration", () => {
     assert.match(CI_WORKFLOW, /Run unit tests[\s\S]*if: \$\{\{ always\(\) \}\}/);
   });
 });
+
+it("real WASM regressions gate candidate packaging", () => {
+  assert.equal(PACKAGE.scripts["test:wasm"], "node --test tests/runtime/*.test.mjs");
+  const quality = CI_WORKFLOW.split("\n  dependency-audit:")[0];
+  const build = quality.indexOf("name: Build pinned WASM runtime once");
+  const regression = quality.indexOf("name: Run real WASM archive regressions");
+  const packaging = quality.indexOf("name: Package candidate and integrity manifest");
+  assert.ok(build >= 0 && regression > build && packaging > regression);
+  const step = quality.slice(regression, quality.indexOf("name: Retain WASM runtime evidence"));
+  assert.match(step, /set -euo pipefail/);
+  assert.match(step, /npm run test:wasm/);
+  assert.doesNotMatch(step, /continue-on-error|if:|\|\| true/);
+});

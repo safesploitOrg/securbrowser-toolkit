@@ -75,5 +75,75 @@
     return { entries: [...entries.values()], totalBytes };
   }
 
-  globalThis.SbtArchivePolicy = Object.freeze({ safePath, parseTechnicalListing });
+  // Only for a freshly generated archive, never as an extraction parser.
+  // The pinned 7-Zip 26.06 engine emits an AES-only encoded header for
+  // single-item archives. Reject every other shape rather than guessing.
+  function verifySingleItemEncryptedHeader(bytes) {
+    const invalid = () => reject("Generated single-item archive header encryption could not be independently verified.", "HEADER_ENCRYPTION_VERIFY_FAILED");
+    const crc32 = (data) => {
+      let crc = 0xffffffff;
+      for (const byte of data) {
+        crc ^= byte;
+        for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+      }
+      return (crc ^ 0xffffffff) >>> 0;
+    };
+    if (!(bytes instanceof Uint8Array) || bytes.length < 32 || bytes.length > 1024 * 1024 * 1024 ||
+        ![0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c, 0, 4].every((byte, index) => bytes[index] === byte)) invalid();
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    if (view.getUint32(8, true) !== crc32(bytes.subarray(12, 32))) invalid();
+    const offset = view.getBigUint64(12, true);
+    const size = view.getBigUint64(20, true);
+    // The outer header contains only one AES coder and bounded metadata.
+    if (offset + size + 32n !== BigInt(bytes.length) || size === 0n || size > 256n) invalid();
+    const header = bytes.subarray(32 + Number(offset));
+    if (view.getUint32(28, true) !== crc32(header)) invalid();
+    let cursor = 0;
+    const take = () => {
+      if (cursor >= header.length) invalid();
+      return header[cursor++];
+    };
+    const expect = (...values) => { for (const value of values) if (take() !== value) invalid(); };
+    // 7z variable-length unsigned integer, bounded to the generated archive.
+    const number = () => {
+      const first = take();
+      let mask = 0x80;
+      let value = 0n;
+      for (let index = 0; index < 8; index += 1) {
+        if (!(first & mask)) {
+          value |= BigInt(first & (mask - 1)) << BigInt(index * 8);
+          if (value > BigInt(bytes.length)) invalid();
+          return Number(value);
+        }
+        value |= BigInt(take()) << BigInt(index * 8);
+        mask >>>= 1;
+      }
+      if (value > BigInt(bytes.length)) invalid();
+      return Number(value);
+    };
+    expect(0x17, 0x06); // EncodedHeader, PackInfo
+    const packPosition = number();
+    if (number() !== 1) invalid(); // Exactly one packed stream.
+    expect(0x09); // Size
+    const packSize = number();
+    if (!packSize || packSize % 16 || packPosition + packSize !== Number(offset)) invalid();
+    expect(0x00, 0x07, 0x0b); // End, UnpackInfo, Folder
+    if (number() !== 1) invalid(); // Exactly one folder.
+    expect(0x00); // Inline coder metadata.
+    if (number() !== 1) invalid(); // Exactly one coder, AES-256 only.
+    expect(0x24, 0x06, 0xf1, 0x07, 0x01); // 7zAES method with properties.
+    if (number() !== 18) invalid();
+    expect(0x53, 0x0f); // Pinned engine: 2^19 SHA-256 cycles, no salt, 16-byte IV.
+    for (let index = 0; index < 16; index += 1) take();
+    expect(0x0c); // CodersUnpackSize
+    const unpackSize = number();
+    if (!unpackSize || Math.ceil(unpackSize / 16) * 16 !== packSize) invalid();
+    expect(0x0a, 0x01); // CRC of decoded header, present for the one folder.
+    for (let index = 0; index < 4; index += 1) take();
+    expect(0x00, 0x00); // No extra streams or plaintext metadata.
+    if (cursor !== header.length) invalid();
+    return true;
+  }
+
+  globalThis.SbtArchivePolicy = Object.freeze({ safePath, parseTechnicalListing, verifySingleItemEncryptedHeader });
 })();

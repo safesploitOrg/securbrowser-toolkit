@@ -102,3 +102,24 @@ Threat review: a missing/unprotected environment could otherwise permit accident
 | Full browser/axe verification and owner exception | PENDING: general job remains owner-paused; no release exception or sign-off manufactured. |
 
 Authoring runtime is Node 22.16.0 rather than pinned 26.8.1; full connected CI is still required. Environment settings could not be read through the available repository connector. Review the [GitHub environment configuration guidance](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments) and [workflow review history API](https://docs.github.com/en/rest/actions/workflow-runs#get-the-review-history-for-a-workflow-run). Confirm a real successful main run reaches the native approval gate before relying on this release path. Source candidate only; no remote mutation or deployment.
+
+## Single-file archive remediation — 26 November 2026
+
+Baseline: exact main `30f9dcdd2db547620e6f7c992a2384b956d11273`, Git tree `c4db46608d7b9f2ed0268ae78198486424e9c4c9` (90 tracked files), PR #11. [Run 45732899718](https://github.com/safesploitOrg/securbrowser-toolkit/actions/runs/45732899718), attempt 3: all enabled CI gates, Pages preparation, recorded human approval, deployment and hosted WASM SHA-256 smoke verification passed. This is historical evidence, not approval of the new candidate. The reported single extensionless 154-byte file subsequently failed at archive creation. Classification B+D, T2 (archive verification and parser boundary). No external archive-parser expansion, changed cryptographic parameters, extra archive entries, new dependencies or engine replacement.
+
+Actual local reproduction used the original pinned release ZIP from GitHub run 45729394024, independently checked against committed SHA-256 `8c4dc98f02d35b6163416ba6a7f330ef321df78f8eebb81943c2af32e04bfdd6`. At levels 0, 3, 5 and 9, the single-file encrypted archive's wrong-password listing threw the exact `Aborted(undefined). Build with -sASSERTIONS for more info.` WebAssembly exception. Two-file protected archives returned exit code 2; single/two-file visible-header negative controls listed successfully. The upstream build disables C++ exception catching. The narrow compatibility correction requires correct-password integrity, exact entry checks, no entry section in the failed probe and independent generated AES-only outer-header structure verification before accepting this particular abort. Unrelated errors, invalid exit statuses, malformed headers and filename exposure remain blocking. See `SECURE_ARCHIVE.md` and `threat-model.md` for scope and limitations.
+
+| Check on revised source | Actual result |
+| --- | --- |
+| Original source baseline | PASS: original ZIP Git tree and all 90 tracked paths/modes match exact main tree. |
+| Lockfile | PASS: 90 integrity-pinned packages; no dependency/version changes. |
+| `npm run build:public` | PASS: genuine cached vendor ZIP and JS/WASM/licence digests verified; no replacement binary. |
+| `npm run check:offline` | PASS: 68/68 unit tests, including generated header and CI gate regressions; layout, static HTML, style and crypto self-test. |
+| `npm run test:wasm` | PASS: 10/10 tests with the production worker and real pinned WASM in Node, including four compression levels, exact bytes, empty/Unicode and multiple files, incorrect passwords, visible headers, unexpected runtime failures and simulated abort negatives. |
+| Local HTTP server | PASS: HTTP 200, application/wasm and CSP. |
+| Browser reproduction | BLOCKED: installed Chromium navigation to loopback was denied with `ERR_BLOCKED_BY_ADMINISTRATOR`. No bypass attempted. |
+| Expanded native/Chromium interoperability | NOT RUN: native `7zz`/`7z` and installed pinned Playwright tooling unavailable. Fixture and shell syntax checks passed. |
+| Pinned Node, full lint/HTML-Validate and security scans | NOT RUN: authoring environment uses Node 22.16.0, not the pinned 26.8.1, and lacks installed dev/scanner tooling. Required CI remains enabled. |
+| Deployment | NOT RUN for this candidate. Prior protected approval/deployment workflow is unchanged apart from the new quality test step. |
+
+The runtime regression is now mandatory before CI candidate packaging. Real-browser/native interoperability remains mandatory and the prior general browser/axe pause is unchanged; complete current-revision verification or an applicable documented owner-approved Section 14 exception before public release. Local instructions are in `testing.md` and the README. Roll back by reverting the scoped source change through the existing protected CI/CD process. No remote mutation or agent-approved release/exception. The upstream engine still has disabled C++ exception catching; the correction is a bounded compatibility path, not a rebuilt engine or universal 7z parser fix.

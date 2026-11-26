@@ -36,38 +36,46 @@ resolve_engine() {
 
 write_fixtures() {
   local unicode_name=$'caf\303\251.txt'
-  mkdir -p "$WORK_DIR/fixture/nested" "$WORK_DIR/native-out"
+  mkdir -p "$WORK_DIR/fixture/nested" "$WORK_DIR/native-out" "$WORK_DIR/single-config" "$WORK_DIR/single-empty"
   printf 'synthetic archive fixture\n' > "$WORK_DIR/fixture/notes.txt"
   printf '\000\001\002\377\376' > "$WORK_DIR/fixture/nested/binary.dat"
   printf 'unicode fixture\n' > "$WORK_DIR/fixture/nested/$unicode_name"
   printf 'literal filename\n' > "$WORK_DIR/fixture/@literal.txt"
   : > "$WORK_DIR/fixture/empty.bin"
+  # Exact 154-byte extensionless synthetic file, reproducing the reported case.
+  printf '%0154d' 0 > "$WORK_DIR/single-config/config"
+  : > "$WORK_DIR/single-empty/empty.bin"
 }
 
 make_fixtures() {
   write_fixtures
   (cd "$WORK_DIR"; "$SEVENZIP_BIN" a -t7z -mhe=on -mx=5 "-p$TEST_PASSPHRASE" -y -bd native.7z fixture >/dev/null)
+  (cd "$WORK_DIR/single-config"; "$SEVENZIP_BIN" a -t7z -mhe=on -mx=5 "-p$TEST_PASSPHRASE" -y -bd "$WORK_DIR/native-single.7z" config >/dev/null)
+  (cd "$WORK_DIR/single-empty"; "$SEVENZIP_BIN" a -t7z -mhe=on -mx=5 "-p$TEST_PASSPHRASE" -y -bd "$WORK_DIR/native-empty.7z" empty.bin >/dev/null)
   # Truncation is a deterministic corruption fixture; no crafted exploit data.
   head -c 16 "$WORK_DIR/native.7z" > "$WORK_DIR/truncated.7z"
 }
 
 check_archive() {
-  local archive="$1" log="$WORK_DIR/wrong-list.txt" status=0
+  local archive="$1" root="${2:-$WORK_DIR}" target="${3:-fixture}" log="$WORK_DIR/wrong-list.txt" status=0
   "$SEVENZIP_BIN" t -t7z "-p$TEST_PASSPHRASE" -y -bd "$archive" >/dev/null || return 1
   "$SEVENZIP_BIN" l -t7z -slt "-p$TEST_PASSPHRASE" -bd "$archive" > "$WORK_DIR/correct-list.txt" || return 1
   while IFS= read -r name; do
     if ! grep -Fxq -- "Path = $name" "$WORK_DIR/correct-list.txt"; then
       echo 'FAIL: expected internal path missing from correct-password listing' >&2; return 1
     fi
-  done < <(cd "$WORK_DIR"; find fixture -type f)
+  done < <(cd "$root"; find "$target" -type f)
   "$SEVENZIP_BIN" l -t7z -slt "-p$WRONG_PASSPHRASE" -bd "$archive" > "$log" 2>&1 || status=$?
   if [[ "$status" -ne 2 ]]; then
     echo "FAIL: wrong-passphrase listing must return fatal archive error 2, got $status" >&2; return 1
   fi
   # A failed listing alone is insufficient if internal filenames were disclosed first.
+  if grep -Fxq -- "----------" "$log"; then
+    echo 'FAIL: wrong-passphrase listing emitted an entry section' >&2; return 1
+  fi
   while IFS= read -r name; do
     if grep -Fq -- "$name" "$log"; then echo 'FAIL: internal filename disclosed' >&2; return 1; fi
-  done < <(find "$WORK_DIR/fixture" -type f -exec basename {} \;)
+  done < <(cd "$root"; find "$target" -type f -exec basename {} \;)
   status=0
   "$SEVENZIP_BIN" t -t7z "-p$WRONG_PASSPHRASE" -y -bd "$archive" >/dev/null 2>&1 || status=$?
   if [[ "$status" -ne 2 ]]; then
@@ -87,6 +95,15 @@ native_negative_control() {
   if check_archive "$WORK_DIR/visible.7z" > "$WORK_DIR/negative-control.txt" 2>&1; then
     echo 'FAIL: header-encryption check accepted an archive with visible filenames' >&2; return 1
   fi
+  (cd "$WORK_DIR/single-config"; "$SEVENZIP_BIN" a -t7z -mhe=off -mx=5 "-p$TEST_PASSPHRASE" -y -bd "$WORK_DIR/visible-single.7z" config >/dev/null)
+  status=0
+  "$SEVENZIP_BIN" l -t7z -slt "-p$WRONG_PASSPHRASE" -bd "$WORK_DIR/visible-single.7z" > "$WORK_DIR/visible-single-list.txt" 2>&1 || status=$?
+  if [[ "$status" -ne 0 ]] || ! grep -Fxq 'Path = config' "$WORK_DIR/visible-single-list.txt"; then
+    echo 'FAIL: native single-file visible-header negative control did not behave as expected' >&2; return 1
+  fi
+  if check_archive "$WORK_DIR/visible-single.7z" "$WORK_DIR/single-config" config > "$WORK_DIR/single-negative-control.txt" 2>&1; then
+    echo 'FAIL: accepted a single-file archive with visible filename' >&2; return 1
+  fi
   status=0
   "$SEVENZIP_BIN" t -t7z "-p$TEST_PASSPHRASE" -y -bd "$WORK_DIR/truncated.7z" >/dev/null 2>&1 || status=$?
   if [[ "$status" -ne 2 ]]; then
@@ -103,6 +120,23 @@ run_browser() {
     node_modules/.bin/playwright test --config playwright.interop.config.js
 }
 
+verify_browser_single_archives() {
+  local level archive destination
+  for level in 0 3 5 9; do
+    archive="$WORK_DIR/browser-single-$level.7z"
+    destination="$WORK_DIR/native-out/single-$level"
+    check_archive "$archive" "$WORK_DIR/single-config" config
+    "$SEVENZIP_BIN" x -t7z "-p$TEST_PASSPHRASE" -y -bd "-o$destination" "$archive" >/dev/null
+    diff -r -- "$WORK_DIR/single-config" "$destination"
+  done
+  archive="$WORK_DIR/browser-empty.7z"
+  destination="$WORK_DIR/native-out/empty"
+  check_archive "$archive" "$WORK_DIR/single-empty" empty.bin
+  "$SEVENZIP_BIN" x -t7z "-p$TEST_PASSPHRASE" -y -bd "-o$destination" "$archive" >/dev/null
+  diff -r -- "$WORK_DIR/single-empty" "$destination"
+  echo 'PASS: single-file WASM -> native verification, all compression levels and empty file'
+}
+
 main() {
   case "${1:-}" in
     "") ;;
@@ -116,6 +150,8 @@ main() {
   resolve_engine
   make_fixtures
   check_archive "$WORK_DIR/native.7z"
+  check_archive "$WORK_DIR/native-single.7z" "$WORK_DIR/single-config" config
+  check_archive "$WORK_DIR/native-empty.7z" "$WORK_DIR/single-empty" empty.bin
   native_negative_control
   if [[ "$NATIVE_ONLY" == true ]]; then
     echo "PASS: native-only diagnostics; browser/WASM interoperability NOT RUN."
@@ -125,6 +161,7 @@ main() {
   check_archive "$WORK_DIR/browser.7z"
   "$SEVENZIP_BIN" x -t7z "-p$TEST_PASSPHRASE" -y -bd "-o$WORK_DIR/native-out" "$WORK_DIR/browser.7z" >/dev/null
   diff -r -- "$WORK_DIR/fixture" "$WORK_DIR/native-out/fixture"
+  verify_browser_single_archives
   echo 'PASS: WASM -> native 7-Zip extraction and byte-for-byte tree comparison'
   echo 'PASS: native 7-Zip -> WASM extraction and all file byte comparisons'
 }

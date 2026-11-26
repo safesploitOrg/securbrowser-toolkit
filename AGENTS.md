@@ -44,5 +44,5 @@ Use Section 15 of the standard. Report the exact files changed; commands/checks 
 
 - Profiles B+D; cryptography, archive parsing, file writes and deployment policy are T2.
 - Publish only `public/`. Keep Secure File native Web Crypto and the pinned 7-Zip engine local; no task data in storage or telemetry.
-- `npm run check:offline` runs the dependency-free gate; `npm run check` runs full quality; `npm run test:e2e` runs browser journeys; `bash scripts/test-7z-interop.sh` runs browser/native 7-Zip interoperability. See `docs/testing.md` for prerequisites and actual status.
+- `npm run check:offline` runs the dependency-free gate; `npm run check` runs full quality; `npm run test:wasm` executes the real pinned WASM worker regressions after the public build (not a browser test); `npm run test:e2e` runs browser journeys; `bash scripts/test-7z-interop.sh` runs browser/native 7-Zip interoperability. See `docs/testing.md` for prerequisites and actual status.
 - The revised v1.2.0 draft frontend requirements are implemented as candidate guidance, pending documented policy adoption. See `docs/SFW_ADOPTION.md`.

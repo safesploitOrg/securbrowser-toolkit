@@ -25,23 +25,62 @@ The **Prepare npm lockfile** workflow runs the same bootstrap on a connected run
 
 If the bootstrap fails, inspect its actual error. Do not remove the committed-lockfile requirement or merge into `main` to trigger the workflow.
 
+## Quick local run (macOS/Linux)
+
+The full source ZIP includes `package-lock.json` and does not include generated WASM or `node_modules`. Extract into a fresh directory. With `nvm` already installed, select the repository's pinned Node version:
+
+```bash
+nvm install "$(cat .node-version)"
+nvm use "$(cat .node-version)"
+node --version
+npm run build:public
+npm run check:offline
+npm run test:wasm
+npm run serve
+```
+
+Open <http://127.0.0.1:8080/> (stop the server with Ctrl+C). The pinned vendor download happens on the first build, or is verified and reused from `.cache/sevenzip-wasm.zip`. Do not open `public/index.html` via `file://`. `npm ci` and browser installation are not necessary for this fast local test or for serving the built site. Use synthetic files/passphrases only while testing. To reproduce the reported case without exposing an actual config file:
+
+```bash
+FIXTURE_DIR="$(mktemp -d)"
+printf '%0154d' 0 > "$FIXTURE_DIR/config"
+wc -c "$FIXTURE_DIR/config"
+printf 'Select this synthetic file: %s/config\n' "$FIXTURE_DIR"
+```
+
+In Secure Archive, select just that file, choose Normal compression, enter a unique synthetic passphrase of at least 12 characters, create/download the archive, then extract it and compare bytes. Repeat at Store, Fast and Ultra. Remove the synthetic files when finished.
+
+For the actual browser/native release gate, stop any test server first; install native 7-Zip and the pinned browser test tooling. On macOS with Homebrew and nvm:
+
+```bash
+brew install sevenzip
+npm ci --ignore-scripts --no-audit --no-fund
+npx playwright install chromium
+npm run build:public
+npm run test:interop
+```
+
+The harness starts and stops its own loopback HTTP server at port 4174. It exercises actual Chromium and native 7-Zip; no production or GitHub deployment is involved. On supported Linux use `npx playwright install --with-deps chromium` if the system libraries are absent. See the full matrix below for Firefox/WebKit and accessibility coverage.
+
 ## Commands
 
 ```bash
 npm run check:offline          # no npm packages, core unit + static checks
-npm run check                  # full source quality and pinned runtime preparation
+npm run check                  # full source quality, pinned runtime and WASM regressions
+npm run test:wasm              # actual pinned WASM + production worker in Node; build first
 npm run test:e2e:built         # actual browser WASM + UI/axe checks against existing public build
 bash scripts/test-7z-interop.sh # native/WASM exchange, fail closed
 bash scripts/test-7z-interop.sh --native-only # native diagnostics only; NOT a browser pass
 ```
 
-Use `SEVENZIP_BIN=/path/to/7zz` to select an executable; otherwise prefer `7zz`, then `7z` on PATH. The harness checks the native engine identity, correct-password listing and exact fatal-error status on incorrect passwords. A deliberately visible-header archive must fail the concealment check, and a truncated archive must fail the native integrity test. The Bash harness prints the actual executable/version, creates a temporary directory with only synthetic data, builds encrypted native fixtures, verifies password/header behaviour, drives the actual browser UI via Playwright, verifies every downloaded byte, then uses native extraction and `diff -r` on the WASM-created archive. It removes only its own temporary directory. Do not supply private data or real secrets. The runner's native version is recorded, not assumed to equal the pinned WASM version.
+Use `SEVENZIP_BIN=/path/to/7zz` to select an executable; otherwise prefer `7zz`, then `7z` on PATH. The harness checks the native engine identity, correct-password listing and exact fatal-error status on incorrect passwords. A deliberately visible-header archive must fail the concealment check, and a truncated archive must fail the native integrity test. The Bash harness prints the actual executable/version, creates a temporary directory with only synthetic data, builds encrypted native fixtures, verifies password/header behaviour, drives the actual browser UI via Playwright, verifies every downloaded byte, then uses native extraction and `diff -r` on the WASM-created archive. It additionally verifies a 154-byte extensionless single file at all four compression levels, a single empty file, native single-item archives in the reverse direction and single-item visible-header negative controls. It removes only its own temporary directory. Do not supply private data or real secrets. The runner's native version is recorded, not assumed to equal the pinned WASM version.
 
 ## Matrix
 
 - Unit: Web Crypto reference envelope, legacy compatibility, wrong passwords, tampering, parser size/path limits, appearance/storage, state cancellation, safe file saving and gate failures.
 - Browser: Chromium, Firefox, WebKit; 390x844, 768x1024, 1440x900; both themes, keyboard and reduced motion; axe automated checks. Manual 200% zoom, focus and screen reader review are outstanding.
-- Interop: Chromium with actual WASM, native CLI. Synthetic nested directories, binary data, empty and Unicode files, wrong passwords, hidden names, truncated archive, byte comparison in both directions.
+- Runtime: genuine pinned WASM and the production classic worker in a Node adapter. Single-file regressions at all compression levels, empty/Unicode files, multiple files, wrong-password rejection, visible headers, malformed/ambiguous metadata and unexpected error/abort/exit-status handling. The quality gate requires these tests before candidate packaging; they are not browser tests.
+- Interop: Chromium with actual WASM, native CLI. Synthetic nested directories, single extensionless and empty files, binary data, Unicode filenames, all compression levels, wrong passwords, hidden names, truncated archive, byte comparison in both directions.
 - Security: Gitleaks, npm audit and CodeQL SARIF gate. Review vendored component advisories separately; npm audit does not scan the WASM.
 
 A failed or missing mandatory gate blocks release. GitHub run [45666305045](https://github.com/safesploitOrg/securbrowser-toolkit/actions/runs/45666305045) verified the restored staging baseline: all quality and security jobs passed, 23/27 browser cases passed, and native 7-Zip diagnostics passed; full browser and bidirectional interoperability jobs failed. The subsequent test corrections must be verified in a fresh CI run. The fixture writer is independently checked for genuine UTF-8 filenames and exact binary bytes without requiring 7-Zip. The browser tests configure the initial OS appearance before page creation, wait for actual media-query and computed-style changes, and measure password-toggle geometry in document coordinates rather than viewport coordinates. See [verification](VERIFICATION.md) for exact revision evidence and remaining limitations.

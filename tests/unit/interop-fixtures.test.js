@@ -18,6 +18,10 @@ test("Bash interoperability fixtures use genuine UTF-8 filenames and exact binar
     assert.equal(readFileSync(join(dir, "fixture/empty.bin")).length, 0);
     assert.equal(readFileSync(join(dir, "fixture/@literal.txt"), "utf8"), "literal filename\n");
     assert.equal(readFileSync(join(dir, "fixture/notes.txt"), "utf8"), "synthetic archive fixture\n");
+    assert.deepEqual(readdirSync(join(dir, "single-config")), ["config"]);
+    assert.deepEqual(readFileSync(join(dir, "single-config/config")), Buffer.alloc(154, 48));
+    assert.deepEqual(readdirSync(join(dir, "single-empty")), ["empty.bin"]);
+    assert.equal(readFileSync(join(dir, "single-empty/empty.bin")).length, 0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -63,3 +63,56 @@ test("native 7-Zip and browser WASM exchange real header-encrypted archives", as
   await expect(page.locator("#archive-extract-status")).toHaveAttribute("data-type", "error");
   await expect(page.locator("#archive-extract-results")).toBeHidden();
 });
+
+async function createSingleArchive(page, source, expectedSize, compressionLevel, output) {
+  await page.goto("/");
+  await page.locator("#tab-tool-archive").click();
+  // Select an individual file, not a directory with an extra header item.
+  await page.locator("#archive-create-files").setInputFiles(source);
+  await expect(page.locator("#archive-create-file-list li")).toHaveCount(1);
+  expect((await readFile(source)).length).toBe(expectedSize);
+  await page.locator("#archive-compression").selectOption(String(compressionLevel));
+  await page.locator("#archive-create-passphrase").fill(PASSPHRASE);
+  await page.locator("#archive-create-confirm").fill(PASSPHRASE);
+  await page.locator("#archive-create-submit").click();
+  await expect(page.locator("#archive-create-status")).toHaveAttribute("data-type", "success");
+  await expect(page.locator("#archive-create-status")).toContainText("filename protection verified");
+  const download = page.waitForEvent("download");
+  await page.locator("#archive-create-download").click();
+  await (await download).saveAs(output);
+}
+
+for (const level of [0, 3, 5, 9]) {
+  test(`single 154-byte extensionless file, compression ${level}, native-verifiable output`, async ({ page }) => {
+    await createSingleArchive(page, join(WORK_DIR, "single-config/config"), 154, level, join(WORK_DIR, `browser-single-${level}.7z`));
+  });
+}
+
+test("single empty file creates a protected archive without padding entries", async ({ page }) => {
+  await createSingleArchive(page, join(WORK_DIR, "single-empty/empty.bin"), 0, 5, join(WORK_DIR, "browser-empty.7z"));
+});
+
+for (const { archive, name, source } of [
+  { archive: "native-single.7z", name: "config", source: "single-config/config" },
+  { archive: "native-empty.7z", name: "empty.bin", source: "single-empty/empty.bin" },
+]) {
+  test(`native single-item archive ${name}: reject wrong password and recover exact bytes`, async ({ page }) => {
+    await page.goto("/");
+    await page.locator("#tab-tool-archive").click();
+    await page.locator("#tab-archive-extract").click();
+    await page.locator("#archive-extract-file").setInputFiles(join(WORK_DIR, archive));
+    await page.locator("#archive-extract-passphrase").fill(WRONG);
+    await page.locator("#archive-extract-submit").click();
+    await expect(page.locator("#archive-extract-status")).toHaveAttribute("data-type", "error");
+    await expect(page.locator("#archive-extract-results")).toBeHidden();
+    await page.locator("#archive-extract-passphrase").fill(PASSPHRASE);
+    await page.locator("#archive-extract-submit").click();
+    await expect(page.locator("#archive-extract-status")).toHaveAttribute("data-type", "success");
+    const rows = page.locator("#archive-extract-list li");
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText(name);
+    const download = page.waitForEvent("download");
+    await rows.first().getByRole("link").click();
+    expect(await readFile(await (await download).path())).toEqual(await readFile(join(WORK_DIR, source)));
+  });
+}
